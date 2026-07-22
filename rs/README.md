@@ -103,6 +103,7 @@ Deb et al. (2002) for NSGA-II.
 
 | File | Purpose |
 |---|---|
+| `parse_serial.py` | Cooja serial log → events CSV (see `fuzzy_rules_selection.md` §12) |
 | `fuzzy.py` | MFs (firmware-faithful, [60,90] High default), rule encoding, vectorised Sugeno AC, canonical R1–R18 |
 | `data.py` | Event CSV loader + labelling (compute_metrics.py convention) |
 | `candidates.py` | WM + enumeration candidate pool, certainty-grade consequents, pruning |
