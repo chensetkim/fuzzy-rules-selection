@@ -1,8 +1,15 @@
----------------------------------------------------------------
-#include "apps/2h-fuzzrid/fuzzrid-fuzzy-hfs.h"
----------------------------------------------------------------
 
-/* other code */
+Copy both files ```fuzzrid-fuzz-hfs.c``` and ```fuzzrid-fuzzy-hfs.h``` to folder ```apps/2h-fuzzrid```
+
+1. In ```fuzzrid-fuzzy.c``` — add the include at the top, then call 
+the function from inside the existing entry point:
+
+```c
+#include "apps/2h-fuzzrid/fuzzrid-fuzzy-hfs.h"
+```
+
+```c
+
 uint8_t
 fuzzrid_fuzzy_infer_ac(uint8_t v1, uint8_t v2, uint8_t v3,
                        uint8_t v4, uint8_t v5, uint8_t v6, uint8_t v7)
@@ -16,8 +23,22 @@ fuzzrid_fuzzy_infer_ac(uint8_t v1, uint8_t v2, uint8_t v3,
 #else
   /* existing R1..R18 body, unchanged */
   uint8_t w[19]; uint8_t z[19];
-  ...
+  /* other code */
 #endif
 }
-/* other code */
----------------------------------------------------------------
+
+```
+
+2. In ```apps/2h-fuzzrid/Makefile.2h-fuzzrid``` — the new file must be compiled:
+
+```
+2h-fuzzrid_src += fuzzrid-fuzzy-hfs.c
+```
+
+3. In ```examples/2h-fuzzrid/Makefile``` — the switch:
+
+```
+CFLAGS += -DWITH_THFIS=1
+```
+
+then run cooja simulation.
