@@ -1,0 +1,23 @@
+---------------------------------------------------------------
+#include "apps/2h-fuzzrid/fuzzrid-fuzzy-hfs.h"
+---------------------------------------------------------------
+
+/* other code */
+uint8_t
+fuzzrid_fuzzy_infer_ac(uint8_t v1, uint8_t v2, uint8_t v3,
+                       uint8_t v4, uint8_t v5, uint8_t v6, uint8_t v7)
+{
+#if WITH_THFIS
+  uint8_t ra, si, cx;
+  uint8_t ac = fuzzrid_fuzzy_infer_ac_hfs_x(v1, v2, v3, v4, v5, v6, v7,
+                                            &ra, &si, &cx);
+  PRINTF("[HFS] ra=%u si=%u cx=%u ac=%u\n", ra, si, cx, ac);
+  return ac;
+#else
+  /* existing R1..R18 body, unchanged */
+  uint8_t w[19]; uint8_t z[19];
+  ...
+#endif
+}
+/* other code */
+---------------------------------------------------------------
