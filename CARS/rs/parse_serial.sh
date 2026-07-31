@@ -1,115 +1,82 @@
 #!/usr/bin/env bash
 #
-# parse_serial.sh -- end-to-end offline rule selection from one Cooja log
+# parse_serial.sh -- parse every Cooja log in a folder into an events CSV
 # =======================================================================
-# Runs the whole CARS/rs/README.md pipeline for a single simulation log:
+# For each *.log directly inside $LOG_PATH -- sub-folders are not searched --
+# run parse_serial.py and write a CSV of the same name into $OUTPUT_PATH:
 #
-#   sim.log --[parse_serial.py]--> <name>.csv --[run_selection.py]--> outputs
-#                                                  pareto_front.csv
-#                                                  selected_rules.txt
-#                                                  selected_rules.c
-#                                                  overlap_report.txt
+#   $LOG_PATH/foo.log  ->  $OUTPUT_PATH/foo.csv
 #
-# Usage:
-#   ./parse_serial.sh                    # uses ../../sim.log
-#   ./parse_serial.sh /path/to/other.log
+# Edit the two paths below, or override them per run:
 #
-# Everything is auto-derived from the log (attacker IDs, attack start time)
-# so the parameters cannot drift away from the data. Override any of them:
-#
-#   ATK_NODES=22,23,24,25,26 ATK_START_S=300 GENS=400 ./parse_serial.sh
-#   SEEDS="1 2 3 4 5" ./parse_serial.sh      # multi-seed reproducibility run
+#   LOG_PATH=../../Data/Mobile/r1/6 OUTPUT_PATH=../../Data/csv/mobile/r1/6 ./parse_serial.sh
 #
 set -euo pipefail
 
 # Resolve paths relative to this script, not the caller's cwd.
 cd "$(dirname "$0")"
+#=======================================================================#
+# Run script with sub sub-folders.
+# for r in r2 r3; do for n in 3 6 9; do
+#   LOG_PATH=../../Data/Mobile/$r/$n OUTPUT_PATH=../../Data/csv/mobile/$r/$n ./parse_serial.sh
+# done; done
+#=======================================================================#
 
-LOG="${1:-../../sim.log}"
+LOG_PATH="${LOG_PATH:-../../Data/Mobile/r2/3}"        # folder holding the *.log files
+OUTPUT_PATH="${OUTPUT_PATH:-../../Data/csv/mobile/r2/3}" # folder to write the *.csv files
+TIME_UNIT="${TIME_UNIT:-us}"                        # unit of the Cooja script's `time`
 
-# Tunables (defaults from README.md "Usage").
-TIME_UNIT="${TIME_UNIT:-us}"      # unit of the Cooja script's `time` variable
-AC_THR="${AC_THR:-65}"            # FUZZRID_TAU_Q_PCT
-MF_HIGH="${MF_HIGH:-60,90}"       # 50,80 for the pre-Mar-2026 membership funcs
-MAX_TERMS="${MAX_TERMS:-4}"
-MAX_RULES="${MAX_RULES:-30}"      # Z1 RAM/flash budget
-POP="${POP:-120}"                 # GA population size
-GENS="${GENS:-200}"               # GA generations
-TEST_FRAC="${TEST_FRAC:-0.3}"     # fraction of the CSV to hold out for testing (0.0..1.0)
-SEEDS="${SEEDS:-42}"              # space-separated; README suggests 1..10
-
-step() { printf '\n\033[1m== %s ==\033[0m\n' "$*"; }
-die()  { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
-
-# ---------------------------------------------------------------------------
-step "Step 0/4  Locate the log and the Python environment"
-# ---------------------------------------------------------------------------
-[ -f "$LOG" ] || die "log not found: $LOG"
-
-# The CSV is named after the log, so results are always traceable to their
-# source: sim.log -> runs/sim/csv/sim.csv. data.py takes the scenario name
-# from the filename prefix before the first '_'.
-NAME="$(basename "$LOG")"; NAME="${NAME%.*}"
-RUN_DIR="../runs/$NAME"
-CSV_DIR="$RUN_DIR/csv"
-OUT_DIR="$RUN_DIR/selection"
-CSV="$CSV_DIR/$NAME.csv"
+#=======================================================================#
+die() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 # Prefer a project venv (CARS/.venv, then repo-root .venv); else system python3.
 PY=""
 for cand in ../.venv ../../.venv; do
-    if   [ -x "$cand/bin/python" ];        then PY="$cand/bin/python";        break
+    if   [ -x "$cand/bin/python" ];         then PY="$cand/bin/python";         break
     elif [ -x "$cand/Scripts/python.exe" ]; then PY="$cand/Scripts/python.exe"; break
     fi
 done
 [ -n "$PY" ] || PY=python3
 
-"$PY" - <<'EOF' || die "numpy/pandas/pymoo missing -- run ./install_lib.sh first"
-import numpy, pandas, pymoo
-EOF
+[ -d "$LOG_PATH" ] || die "log folder not found: $LOG_PATH"
 
-echo "log     : $LOG"
-echo "python  : $PY"
-echo "run dir : $RUN_DIR"
+# -maxdepth 1: only the *.log sitting directly in $LOG_PATH. Sub-folders are
+# their own run -- point LOG_PATH/OUTPUT_PATH at r1/6, r1/9, ... in turn.
+mapfile -t LOGS < <(find "$LOG_PATH" -maxdepth 1 -type f -name '*.log' | sort)
+[ "${#LOGS[@]}" -gt 0 ] || die "no .log files directly in $LOG_PATH (sub-folders are not searched)"
 
-# ---------------------------------------------------------------------------
-step "Step 1/4  Derive ground truth from the log"
-# ---------------------------------------------------------------------------
-# Attacker motes announce themselves at boot; the IDS never runs on them, so
-# data.py needs the exact set to label y=1 and to drop attacker observers.
-if [ -z "${ATK_NODES:-}" ]; then
-    ATK_NODES="$(awk '/Starting 2H-FuzzRID attacker/ {print $2}' "$LOG" \
+mkdir -p "$OUTPUT_PATH"
+printf '\n\033[1m== %d logs: %s -> %s ==\033[0m\n' "${#LOGS[@]}" "$LOG_PATH" "$OUTPUT_PATH"
+
+FAILED=()
+for LOG in "${LOGS[@]}"; do
+    NAME="$(basename "$LOG")"; NAME="${NAME%.*}"   # foo.log -> foo
+    CSV="$OUTPUT_PATH/$NAME.csv"
+    printf '\n\033[1m--- %s ---\033[0m\n' "$LOG"
+
+    # Attacker motes announce themselves at boot. The mote column is "ID:<n>"
+    # in a captured log and bare "<n>" in the Cooja script's own output; strip
+    # the prefix or `sort -n` collapses every attacker to a single entry.
+    ATK_NODES="$(awk '/Starting 2H-FuzzRID attacker/ { id = $2; sub(/^ID:/, "", id); print id }' "$LOG" \
                  | sort -n -u | paste -sd, -)"
-    [ -n "$ATK_NODES" ] || die "no attacker motes found in $LOG -- set ATK_NODES=..."
-    echo "attackers   : $ATK_NODES  (auto-detected)"
-else
-    echo "attackers   : $ATK_NODES  (from ATK_NODES)"
-fi
-
-# Attackers behave honestly during warm-up. Label from the moment the LAST
-# attacker launches, so no attack row is labelled benign; data.py drops the
-# attacker rows before this instant rather than injecting label noise.
-if [ -z "${ATK_START_S:-}" ]; then
-    ATK_START_S="$(awk '/ATK-LAUNCHED/ {
-                          if (match($0, /t=[0-9]+s/)) {
-                              v = substr($0, RSTART + 2, RLENGTH - 3) + 0
-                              if (v > m) m = v
-                          }
-                        } END { if (m) print m }' "$LOG")"
-    if [ -n "$ATK_START_S" ]; then
-        echo "attack start: ${ATK_START_S}s  (last [ATK-LAUNCHED] marker)"
-    else
-        ATK_START_S=300
-        echo "attack start: ${ATK_START_S}s  (no [ATK-LAUNCHED] markers; FUZZRID_T_WARM_S default)"
+    if [ -z "$ATK_NODES" ]; then
+        printf '\033[33mskip\033[0m no attacker motes found\n' >&2
+        FAILED+=("$LOG")
+        continue
     fi
-else
-    echo "attack start: ${ATK_START_S}s  (from ATK_START_S)"
-fi
+    echo "attackers : $ATK_NODES"
 
-# ---------------------------------------------------------------------------
-step "Step 2/4  Parse the serial log into an events CSV"
-# ---------------------------------------------------------------------------
-mkdir -p "$CSV_DIR"
-"$PY" parse_serial.py "$LOG" "$CSV" \
-    --time-unit "$TIME_UNIT" \
-    --atk-nodes "$ATK_NODES"
+    # A bad log must not abandon the rest, so collect failures and report them
+    # after the loop instead of letting `set -e` abort here.
+    "$PY" parse_serial.py "$LOG" "$CSV" \
+        --time-unit "$TIME_UNIT" \
+        --atk-nodes "$ATK_NODES" || FAILED+=("$LOG")
+done
+
+if [ "${#FAILED[@]}" -gt 0 ]; then
+    printf '\n\033[31m%d/%d logs failed:\033[0m\n' "${#FAILED[@]}" "${#LOGS[@]}" >&2
+    printf '  %s\n' "${FAILED[@]}" >&2
+    exit 1
+fi
+printf '\n\033[1m== done: %d CSVs in %s ==\033[0m\n' "${#LOGS[@]}" "$OUTPUT_PATH"
+#=======================================================================#
