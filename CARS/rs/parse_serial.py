@@ -35,8 +35,10 @@ COLS = ["sim_ms", "mote_id", "src", "R", "Rhat", "e",
         "v1", "v2", "v3", "v4", "v5", "v6", "v7", "AC", "ML",
         "t", "type", "action"]
 
-# Cooja script line: "<time> <mote_id> <serial text>"
-LOG = re.compile(r"^\s*(\d+)\s+(\d+)\s+(.*)$")
+# Cooja line: "<time> <mote_id> <serial text>". Cooja's own log window and the
+# `log.log(time + " " + id + ...)` script emit the id bare; a captured
+# mote-output file writes it as "ID:<n>", so accept both.
+LOG = re.compile(r"^\s*(\d+)\s+(?:ID:)?(\d+)\s+(.*)$")
 
 # Firmware payload.  <<< ALIGN THIS WITH YOUR printf >>>
 #   printf("FUZZRID,DET,%u,%d,%d,%d,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",
