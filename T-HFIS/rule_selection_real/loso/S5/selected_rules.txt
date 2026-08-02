@@ -1,0 +1,31 @@
+Leave-one-scenario-out: trained on all scenarios except S5; evaluated on S5 only (unseen attack type).
+Knee-point hierarchy (19 rules total)
+test F1=0.9780 FPR=0.0026 recall=0.9689 precision=0.9873
+hand-crafted-rule overlap: 8/25 kept, Jaccard=0.222
+
+== RA: Rank-trajectory Anomaly  (inputs v1,v3,v4)  5 rules ==
+       AG1 [generated] IF v1 is L THEN out = L (25)  (support=0.847, conf=0.13)
+       AG3 [generated] IF v3 is L THEN out = VL (0)  (support=0.709, conf=0.00)
+       AG6 [generated] IF v4 is M THEN out = H (75)  (support=0.044, conf=0.72)
+      AG19 [generated] IF v3 is H AND v4 is L THEN out = H (75)  (support=0.194, conf=0.77)
+        A2 [expert]    IF v3 is H THEN out = H (75)  (support=0.276, conf=0.78)
+
+== SI: Signal Instability  (inputs v2,v5)  4 rules ==
+       BG4 [generated] IF v5 is L THEN out = L (25)  (support=0.997, conf=0.22)
+       BG6 [generated] IF v2 is M AND v5 is L THEN out = VH (100)  (support=0.029, conf=0.98)
+        B2 [expert]    IF v5 is H THEN out = H (75)  (support=0.000, conf=1.00)
+        B3 [expert]    IF v2 is H THEN out = M (50)  (support=0.179, conf=0.89)
+
+== CX: Corroboration/Context  (inputs v6,v7)  2 rules ==
+       CG2 [generated] IF v6 is M THEN out = L (25)  (support=0.463, conf=0.22)
+        C5 [expert]    IF v6 is L AND v7 is L THEN out = M (50)  (support=0.353, conf=0.21)
+
+== TOP: Decision  (inputs RA,SI,CX)  8 rules ==
+       TG9 [generated] IF RA is M AND SI is M THEN out = VH (100)  (support=0.015, conf=1.00)
+      TG10 [generated] IF RA is H AND SI is M THEN out = H (75)  (support=0.137, conf=0.86)
+      TG15 [generated] IF SI is L AND CX is L THEN out = VL (0)  (support=0.467, conf=0.08)
+      TG21 [generated] IF RA is M AND SI is M AND CX is L THEN out = VH (100)  (support=0.012, conf=1.00)
+        T2 [expert]    IF RA is H AND CX is M THEN out = VH (100)  (support=0.081, conf=0.87)
+        T4 [expert]    IF SI is H AND CX is M THEN out = H (75)  (support=0.000, conf=1.00)
+        T7 [expert]    IF RA is L AND SI is L AND CX is L THEN out = VL (0)  (support=0.372, conf=0.00)
+        T8 [expert]    IF RA is L AND SI is L AND CX is M THEN out = VL (0)  (support=0.319, conf=0.00)

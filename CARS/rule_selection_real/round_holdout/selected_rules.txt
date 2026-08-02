@@ -1,0 +1,20 @@
+Independent re-selection trained on mobile r1+r2 + static r1 only; evaluated on mobile r3, a simulation repetition never used for candidate generation or NSGA-II fitness. Tests generalisation, not deployed.
+Knee-point rule base (15 rules)
+test F1=0.8317 FPR=0.0038 recall=0.7239 precision=0.9774
+expert overlap: 0/18 expert rules kept, Jaccard=0.000
+
+     G12(enum) [generated] IF v5 is L AND v6 is M THEN AC = L (25)   (support=0.431, conf=0.22)
+     G14(enum) [generated] IF v5 is L AND v6 is H THEN AC = L (25)   (support=0.062, conf=0.27)
+     G56(enum) [generated] IF v4 is H THEN AC = VH (100)   (support=0.034, conf=0.96)
+     G98(enum) [generated] IF v3 is H AND v7 is L THEN AC = H (75)   (support=0.276, conf=0.78)
+    G117(enum) [generated] IF v3 is H AND v4 is L THEN AC = H (75)   (support=0.191, conf=0.77)
+    G121(enum) [generated] IF v3 is H AND v4 is L AND v6 is M THEN AC = H (75)   (support=0.089, conf=0.70)
+    G149(enum) [generated] IF v3 is H AND v4 is H AND v5 is L THEN AC = VH (100)   (support=0.030, conf=0.96)
+    G206(enum) [generated] IF v2 is L AND v3 is H AND v6 is M THEN AC = L (25)   (support=0.031, conf=0.23)
+    G218(enum) [generated] IF v2 is M AND v7 is L THEN AC = VH (100)   (support=0.040, conf=0.98)
+    G321(enum) [generated] IF v2 is H AND v4 is M AND v5 is L THEN AC = H (75)   (support=0.026, conf=0.74)
+    G345(enum) [generated] IF v2 is H AND v3 is H AND v5 is L AND v6 is L THEN AC = VH (100)   (support=0.062, conf=0.99)
+    G355(enum) [generated] IF v2 is H AND v3 is H AND v4 is M AND v7 is L THEN AC = H (75)   (support=0.026, conf=0.74)
+    G495(enum) [generated] IF v1 is L AND v2 is L AND v3 is H AND v6 is M THEN AC = L (25)   (support=0.029, conf=0.21)
+    G501(enum) [generated] IF v1 is L AND v2 is M THEN AC = VH (100)   (support=0.025, conf=0.98)
+    G548(enum) [generated] IF v1 is L AND v2 is H AND v3 is H THEN AC = VH (100)   (support=0.071, conf=1.00)

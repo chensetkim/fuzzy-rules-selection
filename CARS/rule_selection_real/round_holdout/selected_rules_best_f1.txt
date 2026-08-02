@@ -1,0 +1,22 @@
+Best-F1 rule base within [12,29] rules (argmax f1_test, ties -> fewer rules)
+(17 rules)
+test F1=0.8954 FPR=0.0261 recall=0.9042 precision=0.8869
+expert overlap: 0/18 expert rules kept, Jaccard=0.000
+
+     G12(enum) [generated] IF v5 is L AND v6 is M THEN AC = L (25)   (support=0.431, conf=0.22)
+     G14(enum) [generated] IF v5 is L AND v6 is H THEN AC = L (25)   (support=0.062, conf=0.27)
+     G39(enum) [generated] IF v4 is L AND v5 is M AND v7 is L THEN AC = VH (100)   (support=0.005, conf=0.91)
+     G56(enum) [generated] IF v4 is H THEN AC = VH (100)   (support=0.034, conf=0.96)
+     G98(enum) [generated] IF v3 is H AND v7 is L THEN AC = H (75)   (support=0.276, conf=0.78)
+    G117(enum) [generated] IF v3 is H AND v4 is L THEN AC = H (75)   (support=0.191, conf=0.77)
+    G133(enum) [generated] IF v3 is H AND v4 is M AND v6 is L AND v7 is L THEN AC = VH (100)   (support=0.009, conf=0.95)
+    G218(enum) [generated] IF v2 is M AND v7 is L THEN AC = VH (100)   (support=0.040, conf=0.98)
+    G277(enum) [generated] IF v2 is M AND v3 is H AND v4 is L AND v5 is L THEN AC = VH (100)   (support=0.024, conf=0.99)
+    G288(enum) [generated] IF v2 is H AND v6 is L THEN AC = VH (100)   (support=0.066, conf=0.99)
+    G345(enum) [generated] IF v2 is H AND v3 is H AND v5 is L AND v6 is L THEN AC = VH (100)   (support=0.062, conf=0.99)
+    G353(enum) [generated] IF v2 is H AND v3 is H AND v4 is L AND v5 is L THEN AC = VH (100)   (support=0.111, conf=0.90)
+    G355(enum) [generated] IF v2 is H AND v3 is H AND v4 is M AND v7 is L THEN AC = H (75)   (support=0.026, conf=0.74)
+    G400(enum) [generated] IF v1 is L AND v4 is M AND v5 is L AND v7 is L THEN AC = H (75)   (support=0.018, conf=0.73)
+    G501(enum) [generated] IF v1 is L AND v2 is M THEN AC = VH (100)   (support=0.025, conf=0.98)
+    G548(enum) [generated] IF v1 is L AND v2 is H AND v3 is H THEN AC = VH (100)   (support=0.071, conf=1.00)
+    G675(enum) [generated] IF v1 is H AND v2 is H THEN AC = H (75)   (support=0.097, conf=0.79)

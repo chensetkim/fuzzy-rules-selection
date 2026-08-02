@@ -1,0 +1,26 @@
+Independent re-selection trained on mobile r1+r2 + static r1 only; evaluated on mobile r3, a simulation repetition never used for candidate generation or NSGA-II fitness. Tests generalisation, not deployed.
+Knee-point hierarchy (14 rules total)
+test F1=0.7848 FPR=0.0034 recall=0.6557 precision=0.9773
+hand-crafted-rule overlap: 9/25 kept, Jaccard=0.300
+
+== RA: Rank-trajectory Anomaly  (inputs v1,v3,v4)  3 rules ==
+       AG1 [generated] IF v1 is L THEN out = L (25)  (support=0.852, conf=0.14)
+      AG12 [generated] IF v1 is L AND v4 is L THEN out = VL (0)  (support=0.808, conf=0.11)
+        A2 [expert]    IF v3 is H THEN out = H (75)  (support=0.277, conf=0.78)
+
+== SI: Signal Instability  (inputs v2,v5)  3 rules ==
+       BG2 [generated] IF v2 is M THEN out = VH (100)  (support=0.040, conf=0.98)
+        B3 [expert]    IF v2 is H THEN out = M (50)  (support=0.169, conf=0.88)
+        B4 [expert]    IF v2 is M AND v5 is M THEN out = M (50)  (support=0.005, conf=1.00)
+
+== CX: Corroboration/Context  (inputs v6,v7)  2 rules ==
+        C4 [expert]    IF v6 is M AND v7 is L THEN out = L (25)  (support=0.434, conf=0.22)
+        C5 [expert]    IF v6 is L AND v7 is L THEN out = M (50)  (support=0.394, conf=0.22)
+
+== TOP: Decision  (inputs RA,SI,CX)  6 rules ==
+       TG2 [generated] IF RA is M THEN out = H (75)  (support=0.035, conf=0.71)
+      TG16 [generated] IF SI is L AND CX is L THEN out = VL (0)  (support=0.438, conf=0.09)
+        T2 [expert]    IF RA is H AND CX is M THEN out = VH (100)  (support=0.087, conf=0.88)
+        T3 [expert]    IF RA is H AND CX is L THEN out = M (50)  (support=0.150, conf=0.62)
+        T4 [expert]    IF SI is H AND CX is M THEN out = H (75)  (support=0.000, conf=1.00)
+        T5 [expert]    IF RA is M AND SI is H THEN out = H (75)  (support=0.000, conf=1.00)

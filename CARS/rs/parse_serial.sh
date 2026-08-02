@@ -22,8 +22,8 @@ cd "$(dirname "$0")"
 # done; done
 #=======================================================================#
 
-LOG_PATH="${LOG_PATH:-../../Data/Mobile/r2/3}"        # folder holding the *.log files
-OUTPUT_PATH="${OUTPUT_PATH:-../../Data/csv/mobile/r2/3}" # folder to write the *.csv files
+LOG_PATH="${LOG_PATH:-../../Data/Static/r3/3}"        # folder holding the *.log files
+OUTPUT_PATH="${OUTPUT_PATH:-../../Data/csv/Static/r3/3}" # folder to write the *.csv files
 TIME_UNIT="${TIME_UNIT:-us}"                        # unit of the Cooja script's `time`
 
 #=======================================================================#

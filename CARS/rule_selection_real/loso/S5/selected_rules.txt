@@ -1,0 +1,24 @@
+Leave-one-scenario-out: trained on all scenarios except S5; evaluated on S5 only (unseen attack type).
+Knee-point rule base (19 rules)
+test F1=0.9754 FPR=0.0082 recall=0.9902 precision=0.9610
+expert overlap: 0/18 expert rules kept, Jaccard=0.000
+
+      G5(enum) [generated] IF v6 is M AND v7 is L THEN AC = L (25)   (support=0.462, conf=0.22)
+    G106(enum) [generated] IF v3 is H AND v4 is L AND v7 is L THEN AC = H (75)   (support=0.193, conf=0.77)
+    G108(enum) [generated] IF v3 is H AND v4 is L AND v6 is L AND v7 is L THEN AC = VH (100)   (support=0.065, conf=0.96)
+    G121(enum) [generated] IF v3 is H AND v4 is M AND v6 is L AND v7 is L THEN AC = VH (100)   (support=0.009, conf=0.95)
+    G131(enum) [generated] IF v3 is H AND v4 is H THEN AC = VH (100)   (support=0.030, conf=0.95)
+    G138(enum) [generated] IF v3 is H AND v4 is H AND v5 is L AND v7 is L THEN AC = VH (100)   (support=0.030, conf=0.95)
+    G193(enum) [generated] IF v2 is L AND v3 is H AND v5 is L THEN AC = L (25)   (support=0.061, conf=0.35)
+    G200(enum) [generated] IF v2 is M AND v7 is L THEN AC = VH (100)   (support=0.029, conf=0.98)
+    G209(enum) [generated] IF v2 is M AND v5 is L AND v6 is M THEN AC = VH (100)   (support=0.019, conf=0.98)
+    G272(enum) [generated] IF v2 is H AND v4 is M THEN AC = H (75)   (support=0.029, conf=0.80)
+    G353(enum) [generated] IF v1 is L AND v4 is M AND v6 is M AND v7 is L THEN AC = H (75)   (support=0.014, conf=0.69)
+    G456(enum) [generated] IF v1 is L AND v2 is M AND v5 is L AND v7 is L THEN AC = VH (100)   (support=0.014, conf=0.97)
+    G477(enum) [generated] IF v1 is L AND v2 is H AND v5 is L AND v7 is L THEN AC = VH (100)   (support=0.074, conf=1.00)
+    G499(enum) [generated] IF v1 is L AND v2 is H AND v3 is H AND v5 is L THEN AC = VH (100)   (support=0.074, conf=1.00)
+    G510(enum) [generated] IF v1 is H AND v6 is L AND v7 is L THEN AC = VH (100)   (support=0.035, conf=0.96)
+    G523(enum) [generated] IF v1 is H AND v4 is L AND v6 is M THEN AC = H (75)   (support=0.047, conf=0.72)
+    G556(enum) [generated] IF v1 is H AND v3 is H AND v6 is L THEN AC = VH (100)   (support=0.035, conf=0.97)
+    G607(enum) [generated] IF v1 is H AND v2 is M AND v5 is L AND v7 is L THEN AC = VH (100)   (support=0.015, conf=0.98)
+      G653(wm) [generated] IF v1 is H AND v2 is H AND v3 is H AND v4 is L AND v5 is L AND v6 is M AND v7 is L THEN AC = H (75)   (support=0.035, conf=0.77)

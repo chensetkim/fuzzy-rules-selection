@@ -48,25 +48,30 @@ def f1_fpr(ac: np.ndarray, y: np.ndarray, ac_thr: float = 65.0):
 
 class RuleSelectionProblem(Problem):
     def __init__(self, W: np.ndarray, z: np.ndarray, y: np.ndarray,
-                 ac_thr: float = 65.0, max_rules: int = 30):
+                 ac_thr: float = 65.0, max_rules: int = 30, min_rules: int = 0):
         self.W, self.z, self.y = W, z, y
-        self.ac_thr, self.max_rules = ac_thr, max_rules
-        super().__init__(n_var=W.shape[1], n_obj=3, n_constr=1, xl=0, xu=1,
+        self.ac_thr, self.max_rules, self.min_rules = ac_thr, max_rules, min_rules
+        n_constr = 2 if min_rules > 0 else 1
+        super().__init__(n_var=W.shape[1], n_obj=3, n_constr=n_constr, xl=0, xu=1,
                          vtype=bool)
 
     def _evaluate(self, Xpop, out, *args, **kwargs):
         F = np.empty((len(Xpop), 3))
-        G = np.empty((len(Xpop), 1))
+        G = np.empty((len(Xpop), self.n_constr))
         for i, mask in enumerate(Xpop.astype(bool)):
             n = int(mask.sum())
             if n == 0:
                 F[i] = [1.0, 1.0, 0.0]
-                G[i] = 1.0
+                G[i, 0] = 1.0
+                if self.n_constr > 1:
+                    G[i, 1] = self.min_rules
                 continue
             ac = sugeno_ac(self.W, self.z, subset=mask)
             f1, fpr, _ = f1_fpr(ac, self.y, self.ac_thr)
             F[i] = [1.0 - f1, fpr, n / self.max_rules]
-            G[i] = n - self.max_rules          # constraint: |S| <= max_rules
+            G[i, 0] = n - self.max_rules       # constraint: |S| <= max_rules
+            if self.n_constr > 1:
+                G[i, 1] = self.min_rules - n   # constraint: |S| >= min_rules
         out["F"], out["G"] = F, G
 
 
@@ -85,10 +90,11 @@ def seeded_population(pool_size: int, pop_size: int, expert_mask: np.ndarray,
 
 
 def run_nsga2(pool: dict, y: np.ndarray, ac_thr: float = 65.0,
-              max_rules: int = 30, pop_size: int = 120, n_gen: int = 200,
-              seed: int = 42, verbose: bool = True):
+              max_rules: int = 30, min_rules: int = 0, pop_size: int = 120,
+              n_gen: int = 200, seed: int = 42, verbose: bool = True):
     W, z, expert_mask = pool["W"], pool["z"], pool["expert_mask"]
-    problem = RuleSelectionProblem(W, z, y, ac_thr=ac_thr, max_rules=max_rules)
+    problem = RuleSelectionProblem(W, z, y, ac_thr=ac_thr, max_rules=max_rules,
+                                   min_rules=min_rules)
 
     init = seeded_population(W.shape[1], pop_size, expert_mask, seed=seed)
     algo = NSGA2(pop_size=pop_size,

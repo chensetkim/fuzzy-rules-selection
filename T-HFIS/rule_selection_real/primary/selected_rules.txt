@@ -1,0 +1,27 @@
+Scenario-stratified 70/30 split (all env/round/atkcount pooled; all 6 attack variants on both sides).
+Knee-point hierarchy (15 rules total)
+test F1=0.8718 FPR=0.0049 recall=0.7865 precision=0.9778
+hand-crafted-rule overlap: 7/25 kept, Jaccard=0.212
+
+== RA: Rank-trajectory Anomaly  (inputs v1,v3,v4)  5 rules ==
+       AG1 [generated] IF v1 is L THEN out = L (25)  (support=0.852, conf=0.14)
+      AG19 [generated] IF v3 is H AND v4 is L THEN out = H (75)  (support=0.183, conf=0.75)
+      AG28 [generated] IF v1 is H AND v3 is H AND v4 is M THEN out = H (75)  (support=0.025, conf=0.66)
+        A1 [expert]    IF v1 is H THEN out = VH (100)  (support=0.143, conf=0.69)
+        A2 [expert]    IF v3 is H THEN out = H (75)  (support=0.273, conf=0.76)
+
+== SI: Signal Instability  (inputs v2,v5)  2 rules ==
+       BG6 [generated] IF v2 is M AND v5 is L THEN out = VH (100)  (support=0.038, conf=0.98)
+        B3 [expert]    IF v2 is H THEN out = M (50)  (support=0.163, conf=0.86)
+
+== CX: Corroboration/Context  (inputs v6,v7)  2 rules ==
+       CG4 [generated] IF v7 is L THEN out = L (25)  (support=0.998, conf=0.22)
+        C5 [expert]    IF v6 is L AND v7 is L THEN out = M (50)  (support=0.339, conf=0.21)
+
+== TOP: Decision  (inputs RA,SI,CX)  6 rules ==
+       TG3 [generated] IF RA is H THEN out = H (75)  (support=0.203, conf=0.69)
+       TG4 [generated] IF SI is L THEN out = VL (0)  (support=0.818, conf=0.07)
+       TG9 [generated] IF RA is M AND SI is M THEN out = VH (100)  (support=0.015, conf=1.00)
+        T2 [expert]    IF RA is H AND CX is M THEN out = VH (100)  (support=0.077, conf=0.86)
+        T3 [expert]    IF RA is H AND CX is L THEN out = M (50)  (support=0.158, conf=0.62)
+        T5 [expert]    IF RA is M AND SI is H THEN out = H (75)  (support=0.000, conf=1.00)

@@ -1,0 +1,17 @@
+Leave-one-scenario-out: trained on all scenarios except S6; evaluated on S6 only (unseen attack type).
+Knee-point rule base (12 rules)
+test F1=0.6513 FPR=0.0066 recall=0.4967 precision=0.9460
+expert overlap: 0/18 expert rules kept, Jaccard=0.000
+
+     G12(enum) [generated] IF v5 is L AND v6 is M THEN AC = L (25)   (support=0.464, conf=0.22)
+     G52(enum) [generated] IF v4 is H THEN AC = VH (100)   (support=0.040, conf=0.97)
+     G64(enum) [generated] IF v3 is L THEN AC = VL (0)   (support=0.702, conf=0.00)
+    G225(enum) [generated] IF v2 is M AND v7 is L THEN AC = VH (100)   (support=0.037, conf=0.98)
+    G226(enum) [generated] IF v2 is M AND v6 is L THEN AC = VH (100)   (support=0.007, conf=0.98)
+    G262(enum) [generated] IF v2 is M AND v3 is H AND v7 is L THEN AC = VH (100)   (support=0.035, conf=0.98)
+    G286(enum) [generated] IF v2 is H AND v7 is L THEN AC = H (75)   (support=0.188, conf=0.87)
+    G295(enum) [generated] IF v2 is H AND v5 is L AND v6 is L THEN AC = VH (100)   (support=0.061, conf=0.98)
+    G342(enum) [generated] IF v2 is H AND v3 is H AND v5 is L THEN AC = H (75)   (support=0.185, conf=0.87)
+    G466(enum) [generated] IF v1 is L AND v2 is L AND v4 is L AND v6 is H THEN AC = VL (0)   (support=0.037, conf=0.01)
+    G537(enum) [generated] IF v1 is L AND v2 is H AND v3 is H AND v7 is L THEN AC = VH (100)   (support=0.076, conf=1.00)
+    G614(enum) [generated] IF v1 is H AND v3 is H AND v4 is L AND v6 is M THEN AC = H (75)   (support=0.043, conf=0.78)

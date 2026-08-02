@@ -1,0 +1,25 @@
+Leave-one-scenario-out: trained on all scenarios except S3; evaluated on S3 only (unseen attack type).
+Knee-point hierarchy (13 rules total)
+test F1=0.8431 FPR=0.0031 recall=0.7350 precision=0.9883
+hand-crafted-rule overlap: 6/25 kept, Jaccard=0.188
+
+== RA: Rank-trajectory Anomaly  (inputs v1,v3,v4)  4 rules ==
+      AG13 [generated] IF v1 is L AND v4 is H THEN out = VH (100)  (support=0.016, conf=0.96)
+      AG19 [generated] IF v3 is H AND v4 is M THEN out = H (75)  (support=0.048, conf=0.66)
+      AG25 [generated] IF v1 is H AND v3 is H AND v4 is L THEN out = H (75)  (support=0.095, conf=0.79)
+        A2 [expert]    IF v3 is H THEN out = H (75)  (support=0.272, conf=0.71)
+
+== SI: Signal Instability  (inputs v2,v5)  2 rules ==
+       BG2 [generated] IF v2 is M THEN out = VH (100)  (support=0.052, conf=0.99)
+        B3 [expert]    IF v2 is H THEN out = M (50)  (support=0.138, conf=0.80)
+
+== CX: Corroboration/Context  (inputs v6,v7)  2 rules ==
+       CG3 [generated] IF v6 is H THEN out = L (25)  (support=0.072, conf=0.27)
+        C5 [expert]    IF v6 is L AND v7 is L THEN out = M (50)  (support=0.309, conf=0.20)
+
+== TOP: Decision  (inputs RA,SI,CX)  5 rules ==
+      TG13 [generated] IF SI is L AND CX is L THEN out = VL (0)  (support=0.516, conf=0.10)
+      TG14 [generated] IF SI is L AND CX is M THEN out = VL (0)  (support=0.323, conf=0.07)
+        T2 [expert]    IF RA is H AND CX is M THEN out = VH (100)  (support=0.074, conf=0.83)
+        T5 [expert]    IF RA is M AND SI is H THEN out = H (75)  (support=0.000, conf=1.00)
+        T6 [expert]    IF RA is M AND SI is M AND CX is M THEN out = M (50)  (support=0.006, conf=1.00)

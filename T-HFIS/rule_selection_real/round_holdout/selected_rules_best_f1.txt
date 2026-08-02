@@ -1,0 +1,36 @@
+Best-F1 hierarchy within [12,29] rules (argmax f1_test, ties -> fewer rules)
+(24 rules total: RA=9 SI=3 CX=3 TOP=9)
+test F1=0.8956 FPR=0.0244 recall=0.8987 precision=0.8926
+hand-crafted-rule overlap: 8/25 kept, Jaccard=0.195
+
+== RA: Rank-trajectory Anomaly  (inputs v1,v3,v4)  9 rules ==
+       AG1 [generated] IF v1 is L THEN out = L (25)  (support=0.852, conf=0.14)
+       AG3 [generated] IF v3 is L THEN out = VL (0)  (support=0.709, conf=0.00)
+       AG5 [generated] IF v4 is L THEN out = L (25)  (support=0.911, conf=0.17)
+       AG9 [generated] IF v1 is L AND v3 is H THEN out = H (75)  (support=0.149, conf=0.76)
+      AG17 [generated] IF v1 is H AND v4 is H THEN out = VH (100)  (support=0.015, conf=0.95)
+      AG23 [generated] IF v1 is L AND v3 is H AND v4 is L THEN out = H (75)  (support=0.107, conf=0.73)
+      AG28 [generated] IF v1 is H AND v3 is H AND v4 is M THEN out = H (75)  (support=0.023, conf=0.65)
+        A1 [expert]    IF v1 is H THEN out = VH (100)  (support=0.143, conf=0.70)
+        A2 [expert]    IF v3 is H THEN out = H (75)  (support=0.277, conf=0.78)
+
+== SI: Signal Instability  (inputs v2,v5)  3 rules ==
+       BG2 [generated] IF v2 is M THEN out = VH (100)  (support=0.040, conf=0.98)
+       BG7 [generated] IF v2 is M AND v5 is L THEN out = VH (100)  (support=0.037, conf=0.98)
+        B3 [expert]    IF v2 is H THEN out = M (50)  (support=0.169, conf=0.88)
+
+== CX: Corroboration/Context  (inputs v6,v7)  3 rules ==
+       CG3 [generated] IF v6 is H THEN out = L (25)  (support=0.062, conf=0.27)
+        C4 [expert]    IF v6 is M AND v7 is L THEN out = L (25)  (support=0.434, conf=0.22)
+        C5 [expert]    IF v6 is L AND v7 is L THEN out = M (50)  (support=0.394, conf=0.22)
+
+== TOP: Decision  (inputs RA,SI,CX)  9 rules ==
+       TG2 [generated] IF RA is M THEN out = H (75)  (support=0.035, conf=0.71)
+       TG3 [generated] IF RA is H THEN out = H (75)  (support=0.205, conf=0.71)
+      TG14 [generated] IF RA is M AND CX is M THEN out = H (75)  (support=0.024, conf=0.77)
+      TG16 [generated] IF SI is L AND CX is L THEN out = VL (0)  (support=0.438, conf=0.09)
+      TG22 [generated] IF RA is M AND SI is M AND CX is L THEN out = VH (100)  (support=0.013, conf=1.00)
+      TG24 [generated] IF RA is H AND SI is L AND CX is M THEN out = H (75)  (support=0.022, conf=0.65)
+        T2 [expert]    IF RA is H AND CX is M THEN out = VH (100)  (support=0.087, conf=0.88)
+        T3 [expert]    IF RA is H AND CX is L THEN out = M (50)  (support=0.150, conf=0.62)
+        T5 [expert]    IF RA is M AND SI is H THEN out = H (75)  (support=0.000, conf=1.00)
