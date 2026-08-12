@@ -1,0 +1,8 @@
+Knee-point rule base (4 rules)
+test F1=0.9714 FPR=0.0092 recall=0.9674 precision=0.9754
+expert overlap: 0/18 expert rules kept, Jaccard=0.000
+
+     G26(enum) [generated] IF v4 is L AND v5 is M AND v6 is L THEN AC = VH (100)   (support=0.008, conf=0.93)
+     G84(enum) [generated] IF v3 is M AND v4 is L AND v5 is L AND v6 is M THEN AC = VL (0)   (support=0.012, conf=0.08)
+     G86(enum) [generated] IF v3 is H AND v7 is L THEN AC = VH (100)   (support=0.282, conf=0.94)
+    G140(enum) [generated] IF v2 is L AND v6 is M AND v7 is L THEN AC = VL (0)   (support=0.115, conf=0.05)

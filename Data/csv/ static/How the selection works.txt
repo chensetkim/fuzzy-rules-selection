@@ -1,0 +1,5 @@
+How the selection works
+1. Generate candidates (candidates.py:84-86) — all antecedents with ≤4 terms (3,990), plus Wang-Mendel full 7-term rules for the fuzzy cells the data actually occupies.
+2. Assign each candidate a consequent (candidates.py:62-70) — a rule's confidence is the firing-weighted fraction of its activation landing on attack samples, conf = Σ_{y=1} w_r / Σ_all w_r. Then z = the singleton in {0,25,50,75,100} nearest to 100·conf.
+4. Prune (candidates.py:97) — keep support ≥ 0.005 and |conf − 0.5| ≥ 0.15.
+5. NSGA-II (optimize.py:57-70) — minimize (1−F1), FPR, and rule count simultaneously, constrained to ≤30 rules; then pick the knee point weighted (0.6, 0.3, 0.1).

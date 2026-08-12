@@ -1,6 +1,6 @@
 
 # Ignore Folder
-Data/
+# Data/
 
 # Python virtual environment
 .venv/

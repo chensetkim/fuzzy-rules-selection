@@ -1,0 +1,9 @@
+# Attacker mote IDs for S1, derived from the "Starting 2H-FuzzRID attacker"
+# boot markers in the logs. One line per attacker-count subfolder:
+#   <n_attackers>: <comma-separated mote IDs>
+# Use as: ATK_NODES=$(grep '^9:' attacker-id.txt | cut -d: -f2)
+
+Attacker ID in each folder:
+Folder 3: 29,30,31
+Folder 6: 26,27,28,29,30,31
+Folder 9: 23,24,25,26,27,28,29,30,31

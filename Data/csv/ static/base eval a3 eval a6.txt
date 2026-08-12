@@ -1,0 +1,41 @@
+
+dir	--atk-nodes	--atk-start-s	rules	test F1	FPR	recall	precision
+a3	29,30,31	264	6	0.9205	0.0002	0.8537	0.9987
+a6	26,…,31	274	4	0.9714	0.0092	0.9674	0.9754
+a9	23,…,31	280	2	0.9946	0.0000	0.9893	1.0000
+
+
+base                     eval a3               eval a6               eval a9
+                  F1 / FPR / recall     F1 / FPR / recall     F1 / FPR / recall
+-------------------------------------------------------------------------------
+a3              0.9205 /0.0002 /0.8537  0.8470 /0.0047 /0.7436  0.9375 /0.0000 /0.8824
+a6              0.9558 /0.0043 /0.9349  0.9714 /0.0092 /0.9674  0.9914 /0.0000 /0.9829
+a9              0.9624 /0.0116 /0.9810  0.9245 /0.0567 /0.9891  0.9946 /0.0000 /0.9893
+a3+a6+a9        0.9617 /0.0063 /0.9551  0.9722 /0.0099 /0.9708  0.9933 /0.0000 /0.9866
+expert R1-R18   0.9542 /0.0119 /0.9666  0.9379 /0.0412 /0.9798  0.9896 /0.0033 /0.9835
+
+base               mean F1    min F1   n_rules
+a6                  0.9729    0.9558         4     <-- flash this
+a3+a6+a9            0.9757    0.9617        12
+a9                  0.9605    0.9245         2
+expert R1-R18       0.9606    0.9379        18
+a3                  0.9017    0.8470         6
+
+
+-------------------------------------------------------------------------------
+Flash the a6 base — 4 rules
+IF v4 is L AND v5 is M AND v6 is L            THEN AC = VH (100)
+IF v3 is M AND v4 is L AND v5 is L AND v6 is M THEN AC = VL (0)
+IF v3 is H AND v7 is L                        THEN AC = VH (100)
+IF v2 is L AND v6 is M AND v7 is L            THEN AC = VL (0)
+
+It has the best worst-case (min F1 0.9558) and effectively ties the 12-rule combination on mean F1 (0.9729 vs 0.9757) at a third the flash cost. It also beats your 18-rule expert base on every density while using 4 rules instead of 18.
+
+# Don't combine
+Concatenation isn't broken — Sugeno weighted-average aggregation absorbs overlapping rules fine, which is why a3+a6+a9 scores well. It just isn't worth it: +0.003 mean F1 for +8 rules, and it's actually worse than a6 alone on a3 false positives (FPR 0.0063 vs 0.0043). With 18 simulations and no seed variance, a 0.003 difference is well inside the noise you can't currently measure; the 8 extra rules of Z1 flash are real.
+
+# Why not the others
+a3 is the overfit one — trained where attacks are rarest (16.8% positive), it collapses to 0.8470 F1 / 0.7436 recall on a6, missing a quarter of attackers. a9 looks great at 2 rules but its FPR blows up to 0.0567 on a6, 13× worse than a6's base — it leans on IF v3 is H THEN VH (support 0.438), which is only clean when attackers are dense.
+
+One correction to what I flagged last turn: the zero expert overlap isn't a representation mismatch. The expert rules evaluate fine here (0.9606 mean F1), so they're in the same term space and the GA could have selected them — it just found a more compact base instead. That's a legitimate result worth reporting, not a bug.
+

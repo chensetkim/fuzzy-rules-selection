@@ -1,0 +1,24 @@
+cd /home/kimpc/Github/fuzzy-rules-selection/Data/csv
+mkdir -p a3 a6 a9
+mv S*/1-1-27-3-150-*.csv  a3/    # density 3
+mv S*/2-1-24-6-150-*.csv  a6/    # density 6
+mv S*/3-1-21-9-150-*.csv  a9/    # density 9
+rmdir S1 S2 S3 S4 S5 S6
+
+
+cd CARS/rs
+../../.venv/bin/python run_selection.py ../../Data/csv/a3 ../../Data/out/a3 \
+    --atk-nodes 29,30,31 --atk-start-s 264 --ac-thr 65 --mf-high 60,90 \
+    --max-rules 30 --pop 120 --gens 200 --seed 42
+
+../../.venv/bin/python run_selection.py ../../Data/csv/a6 ../../Data/out/a6 \
+    --atk-nodes 26,27,28,29,30,31 --atk-start-s 274 ...
+
+../../.venv/bin/python run_selection.py ../../Data/csv/a9 ../../Data/out/a9 \
+    --atk-nodes 23,24,25,26,27,28,29,30,31 --atk-start-s 280 ...
+    
+    
+
+
+
+
