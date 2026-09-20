@@ -9,7 +9,7 @@
 #
 # Edit the two paths below, or override them per run:
 #
-#   LOG_PATH=../../Data/Mobile/r1/6 OUTPUT_PATH=../../Data/csv/mobile/r1/6 ./parse_serial.sh
+#   LOG_PATH=../../Data/log/Mobile/r1/6 OUTPUT_PATH=../../Data/csv/mobile/r1/6 ./parse_serial.sh
 #
 set -euo pipefail
 
@@ -18,11 +18,11 @@ cd "$(dirname "$0")"
 #=======================================================================#
 # Run script with sub sub-folders.
 # for r in r2 r3; do for n in 3 6 9; do
-#   LOG_PATH=../../Data/Mobile/$r/$n OUTPUT_PATH=../../Data/csv/mobile/$r/$n ./parse_serial.sh
+#   LOG_PATH=../../Data/log/Mobile/$r/$n OUTPUT_PATH=../../Data/csv/mobile/$r/$n ./parse_serial.sh
 # done; done
 #=======================================================================#
 
-LOG_PATH="${LOG_PATH:-../../Data/Static/r3/3}"        # folder holding the *.log files
+LOG_PATH="${LOG_PATH:-../../Data/log/Static/r3/3}"    # folder holding the *.log files
 OUTPUT_PATH="${OUTPUT_PATH:-../../Data/csv/Static/r3/3}" # folder to write the *.csv files
 TIME_UNIT="${TIME_UNIT:-us}"                        # unit of the Cooja script's `time`
 
