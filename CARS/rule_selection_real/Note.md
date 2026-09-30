@@ -8,7 +8,7 @@ The three folders are **the same selection pipeline run under three different
 train/test splits**. They are not three alternative rule bases to pick from:
 only `primary/` is meant to be deployed; the other two exist to tell you whether
 `primary/`'s numbers can be trusted. See `Data/RULE_SELECTION_RESULTS.md` §2 for
-the methodology and `CARS/fuzzy_rules_selection.md` §3.4/§10/§11 for why the
+the methodology and `Report/rules-selection-for-EF-RMAD.md` §3.4/§10/§11 for why the
 extra two splits were needed.
 
 ---

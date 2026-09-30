@@ -20,7 +20,7 @@ detection events (83,781 attack / 304,557 benign, 21.6% positive rate).
 
 ## 2. Method
 
-Both engines reuse the existing methodology (`CARS/fuzzy_rules_selection.md`):
+Both engines reuse the existing methodology (`Report/rules-selection-for-EF-RMAD.md`):
 Wang–Mendel + bounded enumeration candidate generation → Ishibuchi
 certainty-grade consequents → NSGA-II over binary rule-inclusion, minimising
 `(1-F1, FPR, |rules|)` with **hard constraints `12 ≤ |rules| ≤ 29`** (a floor
@@ -45,7 +45,7 @@ subsample of the training split (tractable candidate-firing-matrix size);
 | **Round-holdout** | mobile r1+r2 + static r1 | mobile **r3** (untouched) | Generalises to a fresh, independently-simulated mobility repetition? |
 | **LOSO** (leave-one-scenario-out) | 5 of 6 attack types | the 6th, held out entirely | Generalises to a genuinely **unseen attack type**? |
 
-`CARS/fuzzy_rules_selection.md` §3.4/§10/§11 explicitly flags the primary
+`Report/rules-selection-for-EF-RMAD.md` §3.4/§10/§11 explicitly flags the primary
 split's weakness (consecutive same-run rows are autocorrelated, so a random
 split leaks information) and says results should be re-checked under
 leave-one-scenario-out before trusting them — that check is included here,
@@ -121,7 +121,7 @@ overfitting" number, not the primary split. Two honest findings:
   which are smaller and showed a smaller train→unseen-data gap.
 - Either way, **do not report the primary-split F1 alone** as the
   generalisation number; report it alongside the LOSO mean±std above, per
-  `fuzzy_rules_selection.md`'s own validity guidance.
+  `rules-selection-for-EF-RMAD.md`'s own validity guidance.
 
 ## 5. Files
 

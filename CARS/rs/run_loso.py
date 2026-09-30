@@ -2,7 +2,7 @@
 """
 run_loso.py -- Leave-one-scenario-out validation for the flat pipeline.
 
-CARS/fuzzy_rules_selection.md Sec. 3.4 / Sec. 10 / Sec. 11 flags the
+Report/rules-selection-for-EF-RMAD.md Sec. 3.4 / Sec. 10 / Sec. 11 flags the
 within-scenario random split as the pipeline's weakest point (consecutive
 same-run rows are autocorrelated, so a random split leaks information
 across train/test) and explicitly says: "before any of this goes in the

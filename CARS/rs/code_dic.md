@@ -156,7 +156,7 @@ All three are sanity assertions in disguise:
 
 ### Contract
 
-Full specification in `fuzzy_rules_selection.md` §12.
+Full specification in `Report/rules-selection-for-EF-RMAD.md` §12.
 
 ---
 

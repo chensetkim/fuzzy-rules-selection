@@ -1,4 +1,4 @@
-# Offline Fuzzy Rule Selection for 2H-FuzzRID — Technical Reference
+# Offline Fuzzy Rule Selection for EF-RMAD — Technical Reference
 
 Complete technical description of the pipeline driven by `rs/run_selection.py`, the
 justification for each design decision, and the literature each decision rests on.
@@ -870,3 +870,257 @@ and control," *IEEE Transactions on Systems, Man, and Cybernetics*, vol. 15, no.
 
 [15] F. Österlind, A. Dunkels, J. Eriksson, N. Finne, and T. Voigt, "Cross-level sensor network
 simulation with COOJA," in *31st IEEE Conference on Local Computer Networks (LCN)*, pp. 641–648, 2006.
+
+---
+
+## 14. How to run the CARS code
+
+All CARS code is in `CARS/rs/`. It needs Python 3 with `numpy`, `pandas` and `pymoo`.
+The project venv at the repo root (`.venv/`) already has them. Commands in §14.3 and
+§14.4 must be run **from the repo root** (`fuzzy-rules-selection/`), because their
+default paths (`Data/csv`, `CARS/rule_selection_real`) are relative to it. The shell
+scripts `cd` into their own folder, so they can be run from anywhere.
+
+### 14.1 Setup (once)
+
+```bash
+cd fuzzy-rules-selection
+./CARS/rs/install_lib.sh          # creates CARS/.venv if needed, installs numpy pandas pymoo
+# or use the existing repo-root venv:
+source .venv/bin/activate
+```
+
+`install_lib.sh` installs into `CARS/.venv`. The other shell scripts look for
+`CARS/.venv` first, then the repo-root `.venv`, then fall back to system `python3`.
+
+### 14.2 Step 1: Cooja logs → event CSVs
+
+Parse a folder of Cooja logs. The attacker IDs are auto-detected from the
+`Starting 2H-FuzzRID attacker` boot lines:
+
+```bash
+LOG_PATH=../../Data/log/Mobile/r1/6 \
+OUTPUT_PATH=../../Data/csv/mobile/r1/6 \
+./CARS/rs/parse_serial.sh
+```
+
+The paths are relative to `CARS/rs/`. To do every round and attacker count:
+
+```bash
+for r in r1 r2 r3; do for n in 3 6 9; do
+  LOG_PATH=../../Data/log/Mobile/$r/$n OUTPUT_PATH=../../Data/csv/mobile/$r/$n ./CARS/rs/parse_serial.sh
+done; done
+```
+
+For a single log: `python3 CARS/rs/parse_serial.py sim.log out.csv --time-unit us --atk-nodes 29,30,31`.
+
+> ⚠️ The CSV output folder must be named `mobile` or `static` (lowercase). `Data/real_data.py`
+> gets the environment from the path, and a folder called `Static` fails its path check.
+> The static CSVs are in `Data/csv/static`.
+> The folder layout must be `Data/csv/<env>/r<k>/<3|6|9>/<...>-S<k>-exp<id>...csv`.
+
+### 14.3 Step 2: Rule selection on the real corpus (the results used in the report)
+
+```bash
+# Primary (scenario-stratified 70/30) + round-holdout (test on mobile r3)
+python3 CARS/rs/run_real_selection.py
+#   -> CARS/rule_selection_real/primary/
+#   -> CARS/rule_selection_real/round_holdout/
+
+# Leave-one-scenario-out, 6 folds (S1..S6)
+python3 CARS/rs/run_loso.py
+#   -> CARS/rule_selection_real/loso/S1..S6/
+
+# Optional: re-pick the best-F1 base within the rule budget
+python3 CARS/rs/finalize_selection.py --split primary       --out-dir CARS/rule_selection_real/primary
+python3 CARS/rs/finalize_selection.py --split round_holdout --out-dir CARS/rule_selection_real/round_holdout
+#   -> selected_rules_best_f1.{txt,c}
+```
+
+Defaults that reproduce the reported results:
+
+| Script | Defaults |
+|---|---|
+| `run_real_selection.py` | `--pop 150 --gens 250 --min-rules 12 --max-rules 29 --train-sample 40000 --seed 42 --ac-thr 65 --mf-high 60,90` |
+| `run_loso.py` | `--pop 80 --gens 120 --min-rules 12 --max-rules 29 --train-sample 30000 --seed 42` |
+| `finalize_selection.py` | must use the same `--seed`, `--train-sample` and `--test-frac` as the run it finalises, or the pool will not match and the mask reconstruction assert fails |
+
+Other useful flags: `--csv-root` (input folder), `--out-root` (output folder) and `--seed N`,
+for the multi-seed check in §11.2. For example:
+
+```bash
+for s in 1 2 3 4 5; do
+  python3 CARS/rs/run_real_selection.py --seed $s --out-root CARS/rule_selection_real/seed_$s
+done
+```
+
+Runtime is dominated by NSGA-II. Use smaller `--pop` or `--gens` for a quick check.
+
+> ⚠️ `finalize_selection.py` picks by **test** F1 (§7.1 applies only to the knee pick). Report
+> the knee-point numbers (`selected_rules.txt`) as the clean held-out result.
+
+### 14.4 Alternative: the original single-directory pipeline (§2–§10)
+
+This is the pipeline this document describes step by step. It reads one flat folder of CSVs
+named `<SCENARIO>_<anything>.csv`:
+
+```bash
+./CARS/rs/run_selection.sh                         # sample_csv/ -> CARS/rule_selection/
+# equivalent to:
+cd CARS/rs
+python3 run_selection.py ../sample_csv/ ../rule_selection/ \
+    --atk-nodes 5,6,7,8,9,10 --atk-start-s 300 --ac-thr 65
+```
+
+End-to-end from a single Cooja log. It auto-detects the attackers and attack start, then
+parses and selects:
+
+```bash
+./CARS/rs/run_full_process.sh /path/to/sim.log     # -> CARS/runs/<log-name>/{csv,selection}/
+SEEDS="1 2 3 4 5" GENS=400 ./CARS/rs/run_full_process.sh /path/to/sim.log
+```
+
+For a smoke test on synthetic data:
+
+```bash
+cd CARS/rs && python3 make_synth.py && python3 run_selection.py synth_csv out/
+```
+
+### 14.5 Outputs and deploying the result
+
+Each output folder contains `pareto_front.csv`, `selected_rules.txt`, `selected_rules.c`
+and `overlap_report.txt` (§7.2). To deploy:
+
+1. Open `selected_rules.c` (or `selected_rules_best_f1.c`).
+2. Paste the rule block into the body of `fuzzrid_fuzzy_infer_ac()` in `fuzzrid-fuzzy.c`,
+   replacing the R1–R18 block.
+3. Rebuild the firmware.
+
+The membership functions in the firmware must match the `--mf-high` used for selection (§2).
+
+---
+
+## 15. Open items from the appendix review (2026-09-30)
+
+A reviewer read of the appendix ([`Offline-rule-selection-appendix.md`](Offline-rule-selection-appendix.md))
+raised ten points. Most were answered in the text using diagnostics on the existing results.
+The four below still need new work.
+
+1. **Search-seed robustness (reviewer point 3; the central open question).** Every result
+   comes from one seed (`--seed 42`). The LOSO spread measures variation across attack
+   variants, not optimiser variability. To answer it:
+   - re-run P1 and the six LOSO folds with at least 5 seeds;
+   - report how stable the rule count, selected antecedents and test F1/FPR are;
+   - report paired differences against R1–R18 per seed.
+
+   ```bash
+   for s in 1 2 3 4 5; do
+     python3 CARS/rs/run_real_selection.py --seed $s --out-root CARS/rule_selection_real/seed_$s
+     python3 CARS/rs/run_loso.py          --seed $s --out-root CARS/rule_selection_real/seed_$s/loso
+   done
+   ```
+
+   Uncertainty should be computed per execution or per fold, not per event: events within
+   an execution are correlated.
+
+2. **Which base is deployed (Table A.2 placeholder).** The appendix lists the P1 knee base
+   (15 rules) and asks the authors to say whether this base, or a base re-selected on all
+   data, is compiled into the firmware. Decide this and replace the placeholder.
+
+3. **Filter and exclusion ablations (reviewer points 5–6).** None of these has been run:
+   - *Confidence filter.* It is measured from 0.5, not from the attack prior (≈0.21). Between
+     98 and 125 retained candidates per split are no more predictive than the base rate.
+     Re-run with a prior-relative margin, $|c_r-\pi|\ge m$.
+   - *Expert exemption.* 9–11 of the 18 expert rules would fail the filter if they were not
+     exempt. Re-run with the exemption removed.
+   - *Pre-attack exclusion.* The 9,577 pre-activation attacker events are currently dropped.
+     Re-run with them kept and labelled benign.
+   - *Coverage.* The P1 base leaves 19.5% of test events with no rule firing (27.7% of attacks
+     in fold S2), and these default to benign. Test a coverage term or a default rule, and
+     measure how much of the FPR gain survives.
+
+4. **Appendix length.** The revised appendix is about 2,270 words and two tables, which is
+   more than two pages. Move Table A.2 and the per-fold rows of Table A.1 to supplementary
+   material to bring it back to about 2.5 pages.
+
+The numbers quoted in the appendix can be re-checked with the read-only diagnostics script
+used for the revision. It takes about 7 s: it re-scores every saved base against R1–R18, the
+no-rule-fires rates, dominance on the training objectives, and float-vs-integer
+disagreement. The script is not yet in the repository; copy it into `CARS/rs/` if it should
+be kept.
+
+### 15.1 Decision: Option A, and the work it requires
+
+**Decision (2026-09-30).** The appendix now describes **Option A**:
+
+- The 33-rule base currently used in EF-RMAD becomes the seed base $K_0$, taking the place of
+  R1–R18.
+- CARS then selects freely from the pool of generated rules plus $K_0$.
+- The deployed base is exactly what CARS selects, with no manual edits afterwards.
+
+The appendix text assumes that every reviewer point is fixed. All results are **[TBD]** until
+the runs below are done. Nothing has been run yet.
+
+**Code changes needed before the runs** (all in `CARS/rs/` and `Data/real_data.py`):
+
+1. **Seed base.** Load the 33-rule $K_0$ in place of `EXPERT_RULES`, the 18 rules in
+   `fuzzy.py`. Report `expert_mask` overlap against $K_0$, and still evaluate R1–R18 as a
+   baseline.
+2. **Rule cap.** Use `--max-rules 33` ($U=33$, fixed in the appendix). The objective $f_3$
+   normalises by 33. Also measure the flash cost per rule and the free RAM and flash with a
+   33-rule build, using `msp430-size`, to fill the memory-budget [TBD]s in A.4.
+3. **Prior-relative pruning.** Change the filter to $|c_r - \pi| \ge m$ in
+   `candidates.build_pool`, and choose $m$ before looking at any test results. Also report
+   how many $K_0$ rules would fail it.
+4. **Keep pre-activation events.** Load with `drop_prelaunch_attacker_rows=False`, which gives
+   397,915 events, 21.1% attacks. Keep the exclusion as an ablation only.
+5. **Seeds.** Use R ≥ 5 search seeds for P1, P2 and every P3 fold. Use the full P3 budget
+   (pop 150 × 250), matching the other protocols.
+6. **Deployment run.** Add a run of A.3–A.4 on the full corpus. Its output is the deployed
+   base, exported to `.c` together with a machine-readable rule list.
+7. **Per-rule selection frequency** across seeds × protocols × folds, for Table A.2.
+8. **Reporting.**
+   - Report the uncovered-attack rate (no rule fires) for every base.
+   - Check dominance of the selected base against both $K_0$ and R1–R18, on the fitness sample
+     and on the full training partition.
+   - Measure float-vs-integer disagreement on the new bases.
+9. **Ablations for Table A.3:**
+   - 0.5-centred margin;
+   - $K_0$ rules subject to pruning;
+   - pre-activation events excluded;
+   - no seeding.
+
+**Then:** fill every [TBD] in the appendix from these outputs, including the prevalence range in
+A.5. Do not change the method text to fit the results.
+
+**Outcome.** If the selected base keeps all 33 $K_0$ rules, the appendix can truthfully say the
+deployed base was selected and validated by CARS. If it drops some rules, the deployed base is
+the selected one, and the firmware changes to match. Adding dropped rules back by hand would
+reintroduce the manual-design question.
+
+### 15.2 Added by the second appendix review (2026-09-30)
+
+The appendix was revised for the second review. That revision commits to the following work,
+in addition to §15.1:
+
+10. **$K_0$ provenance (reviewer's top question).** Write down which executions, deployments
+    and attack variants the preliminary runs and trace analyses behind the 33 rules used. This
+    is only possible from your own development history.
+11. **P4 independent corpus.** After $K_0$, every CARS setting and the deployed base are frozen,
+    generate a new batch of simulations with new seeds, and ideally a new topology or mobility
+    trace. Evaluate the deployed base on it unchanged. These are new Cooja runs, so they need
+    the usual 15-minute validation first.
+12. **Integer arithmetic everywhere.** Replace `fuzzy.sugeno_ac` / `firing_matrix` in the
+    NSGA-II fitness and in all reporting with an exact integer re-implementation of the
+    firmware. Check it against the firmware `AC` column logged in the CSVs.
+13. **Two separate ablations.**
+    - *Random initialization:* keep the same pool, but do not seed with $K_0$.
+    - *Generated only:* remove $K_0$ and all its privileges.
+14. **Coverage by class.** Report NF$_1$ and NF$_0$ for every base.
+15. **Selection frequency.** Count antecedent–consequent pairs, and report availability as the
+    denominator.
+16. **Memory.** Measure full-image RAM and flash, the worst-case stack of the inference
+    routine, and flash cost as a function of antecedent length. Confirm whether 33 is an
+    implementation limit or a measured capacity.
+17. **Statistics.** Report per-fold seed medians and ranges, then the across-fold mean ± s.d.
+    of those medians. Compute paired differences against $K_0$ per fold.

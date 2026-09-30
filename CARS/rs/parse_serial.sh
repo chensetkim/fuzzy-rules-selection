@@ -23,7 +23,8 @@ cd "$(dirname "$0")"
 #=======================================================================#
 
 LOG_PATH="${LOG_PATH:-../../Data/log/Static/r3/3}"    # folder holding the *.log files
-OUTPUT_PATH="${OUTPUT_PATH:-../../Data/csv/Static/r3/3}" # folder to write the *.csv files
+# Env folder must be lowercase mobile/static for Data/real_data.py.
+OUTPUT_PATH="${OUTPUT_PATH:-../../Data/csv/static/r3/3}" # folder to write the *.csv files
 TIME_UNIT="${TIME_UNIT:-us}"                        # unit of the Cooja script's `time`
 
 #=======================================================================#

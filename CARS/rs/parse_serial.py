@@ -23,7 +23,7 @@ Of these, data.py reads only type, mote_id, src, t and v1..v7; the rest are
 carried for traceability (AC is the firmware's own inference output, which is
 what lets you cross-check fuzzy.py against the deployed implementation).
 
-See fuzzy_rules_selection.md section 12 for the full contract.
+See Report/rules-selection-for-EF-RMAD.md section 12 for the full contract.
 """
 import argparse
 import csv

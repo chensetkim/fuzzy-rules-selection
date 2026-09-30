@@ -1,13 +1,10 @@
 """
 real_data.py -- Loader for the real Cooja-derived event CSVs under Data/csv/
 =============================================================================
-Data/csv/ layout (note: the static branch is literally named " static" with
-a leading space -- an artefact of how the folder was created upstream; this
-loader does not depend on that quirk since it walks the tree and infers the
-environment tag from a regex, but callers should not assume Path("static")
-exists verbatim):
+Data/csv/ layout (the static branch was renamed from " static", with a
+leading space, to "static"; _parse_path still tolerates the old name):
 
-    Data/csv/{mobile,<static-dir>}/r{1,2,3}/{3,6,9}/<sim-id>-S<k>-exp<id>[-mobile]-<round>.csv
+    Data/csv/{mobile,static}/r{1,2,3}/{3,6,9}/<sim-id>-S<k>-exp<id>[-mobile]-<round>.csv
 
   - mobile / static  : deployment scenario (env)
   - r1 / r2 / r3      : independent simulation repetitions (round)
@@ -78,7 +75,7 @@ def load_real_events(csv_root: str,
     atkcount, src, mote_id, t.
 
     dedup_static_rounds: the static branch is a deterministic simulation
-    (no mobility randomness), so Data/csv/ static/r1, r2, r3 contain
+    (no mobility randomness), so Data/csv/static/r1, r2, r3 contain
     byte-identical CSVs per scenario/atkcount (verified by hashing every
     file). Loading all three would silently triple-count every static row
     and bias support/confidence statistics + train/test balance. When True
@@ -86,7 +83,11 @@ def load_real_events(csv_root: str,
     Mobile rounds ARE independent (mobility is stochastic) and are always
     loaded in full.
     """
-    files = sorted(glob.glob(os.path.join(csv_root, "**", "*.csv"), recursive=True))
+    # Static files first: the folder used to be " static" (leading space), which
+    # sorted before "mobile". Row order seeds the stratified split, so keeping
+    # the original order keeps published splits reproducible.
+    files = sorted(glob.glob(os.path.join(csv_root, "**", "*.csv"), recursive=True),
+                   key=lambda f: (_parse_path(f)[0] != "static", f))
     if not files:
         raise FileNotFoundError(f"no CSVs found under {csv_root}")
 
@@ -180,7 +181,7 @@ def round_holdout_split(ev: pd.DataFrame, test_round: str = "r3"):
 def scenario_holdout_split(ev: pd.DataFrame, test_scenario: str = "S1"):
     """Leave-one-attack-type-out: train on the other five S-variants (every
     env/round/atkcount), test on one attack type never seen during candidate
-    generation or NSGA-II fitness. This is the fix CARS/fuzzy_rules_selection.md
+    generation or NSGA-II fitness. This is the fix Report/rules-selection-for-EF-RMAD.md
     (Sec. 3.4) flags as needed beyond the within-scenario random split, since
     consecutive same-run rows are autocorrelated and inflate a random-split
     test score; holding out a whole attack type removes that leakage and
