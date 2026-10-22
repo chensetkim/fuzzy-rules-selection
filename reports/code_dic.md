@@ -1,333 +1,288 @@
 # Code Dictionary — rule-selection pipeline
 
-> **Note (2026-10-22).** The single-directory pipeline this document walks through (`run_selection.py`, `data.py`, `make_synth.py`, `run_full_process.sh`, `run_selection.sh` and the sample data in `data/samples/`) has been removed; it is in git history up to commit `a29a0a0`. The current pipeline (`./run_cars.sh`, §14) reuses the same `fuzzy.py`, `candidates.py`, `optimize.py` and `report.py`, with `common/real_data.py` as the loader. Since then: no expert rules are injected into the pool or the initial population, the rule budget is 12–35, and the High MF is 50→80.
+Per-file walkthroughs of the code in this repository. `README.md` says *where things are and
+how to run them*; `reports/rules-selection-for-FERMAD.md` gives the *method and its
+justification*; this file explains *how each file works and why it makes the choices it makes*.
+The data-cleaning rules are collected in `reports/data-cleaning-rules.md`.
 
-Per-file walkthroughs of `methods/cars/`. `README.md` describes *what the pipeline
-does*; this file describes *how each script works and why it makes the choices
-it makes*. One section per file, added as they are documented.
+```
+data/raw/*.log ──► scripts/parse_serial.py ──► data/processed/*.csv ─┐
+              └──► scripts/extract_launch.py ──► data/attack_launch.csv ┤
+                                                                       ▼
+                                                        common/real_data.py   load, label, split, compress
+                                                                       │
+              common/fuzzy.py  (MFs, firing, Sugeno, int/float arithmetic)
+                                                                       │
+        ┌──────────────── CARS ────────────────┐      ┌──────────── T-HFIS ─────────────┐
+        common/candidates.py  pool              │      methods/thfis/hfs_pipeline.py     │
+        common/optimize.py    NSGA-II, knee     │      (unit pools, joint NSGA-II,       │
+        common/report.py      tables, C export  │       inference, reporting, C export)│
+        methods/cars/*.py     entry scripts     │      methods/thfis/*.py entry scripts  │
+        └───────────────────────────────────────┘      └──────────────────────────────────┘
+                                                                       │
+        run_cars.sh / run_thfis.sh ── config.sh ── scripts/run_common.sh ── scripts/summarize_run.py
+```
 
 ---
 
-## `parse_serial.py` — Cooja serial log → events CSV
+## Data preparation
 
-The bridge between the Cooja simulation and the rest of the pipeline. It is the
-only script that touches raw firmware output; everything downstream reads the
-CSV it produces.
+### `scripts/parse_serial.py` — Cooja serial log → events CSV
 
-```
-Contiki firmware printf
-        │   "FUZZRID,DET,<src>,<R>,<Rhat>,<e>,<v1..v7>,<AC>,<ML>"
-        ▼
-Cooja test script                TIMEOUT(1800000);
-        │   log.log(time + " " + id + " " + msg + "\n")
-        ▼
-sim.log                          "<time> <mote_id> <serial text>"
-        │
-        ▼
-parse_serial.py  ───────────────►  S1_decrease_jump_run1.csv
-        │
-        ▼
-data.py → candidates.py → optimize.py → report.py
-```
+The only code that reads raw firmware output; everything downstream reads the CSV it writes.
 
-### Invocation
+**Two-stage parsing.** `LOG` splits a Cooja line `<time> <mote_id> <serial text>` (the mote ID
+bare or as `ID:<n>`); `EVT` then matches the firmware payload
+`FUZZRID,DET,<src>,<R>,<Rhat>,<e>,<v1>..<v7>,<AC>,<ML>`. A line that carries `FUZZRID` but does
+not match `EVT` is counted as malformed and reported — serial truncation or a changed `printf`,
+not something to skip silently.
 
-```bash
-python3 parse_serial.py ../data/samples/sim/sim.log ../data/samples/sample_csv/S1_decrease_jump_run1.csv \
-    [--time-unit us|ms] [--atk-nodes 5,6,7,8,9,10] [--no-dedup]
-```
+**`mote_id` vs `src`.** `mote_id` (from the Cooja line) is the node *doing* the observing;
+`src` (from the payload) is the node *being* observed. Labels attach to `src`. Swapping them
+fails silently, which is why `--atk-nodes` prints how many rows have an attacker as `src` and
+warns at zero.
 
-| Argument | Meaning |
-|---|---|
-| `log` | captured Cooja log (positional) |
-| `out_csv` | destination CSV; parent directories are created |
-| `--time-unit` | unit of the Cooja script's `time` variable, `us` (default) or `ms` |
-| `--atk-nodes` | attacker mote IDs — **summary/sanity output only**, labelling happens in `data.py` |
-| `--no-dedup` | keep byte-identical duplicate rows |
+**Time.** The Cooja stamp is microseconds by default (`--time-unit us|ms`); the script writes
+`sim_ms` (milliseconds) and `t = sim_ms // 1000` (seconds). Launch-time labels compare
+`sim_ms`; a fixed `LABEL_START` compares `t`.
 
-The output filename matters downstream: `data.py` takes the **scenario label
-from the filename prefix before the first `_`** (`S1_decrease_jump_run1.csv` →
-scenario `S1`), and the split is stratified on it. Name files accordingly.
+**Fail-loud range check.** Any $v_i$ outside 0–100 stops the script: a scale error would
+otherwise distort every membership value without an error.
 
-### Two-stage parsing
+**Deduplication** drops only rows identical in **every** field (a replayed capture or mote
+reboot) and reports how many. It never keys on `(sim_ms, mote_id, src)`, because one observer
+can emit several genuine events for the same source within a millisecond. `--no-dedup` keeps
+everything.
 
-Parsing is deliberately split into two regexes, because two different producers
-own the two halves of a log line:
+**Output schema** — 18 columns, fixed order:
+`sim_ms,mote_id,src,R,Rhat,e,v1..v7,AC,ML,t,type,action`. `AC` is the firmware's own inference
+output, kept for cross-checking `fuzzy.py`.
 
-- **`LOG`** (`^\s*(\d+)\s+(\d+)\s+(.*)$`) strips the wrapper Cooja adds:
-  timestamp, emitting mote, remaining payload. Owned by the Cooja test script.
-- **`EVT`** matches the firmware's detection marker inside that payload: <br>
->`FUZZRID,DET,src,R,Rhat,e,v1..v7,AC,ML`. 
-  
-  Owned by the firmware `printf`.
+### `scripts/parse_serial.sh` — every log in a folder
 
-**If you change the firmware `printf`, you must change `EVT`.** The comment
-directly above the pattern records the `printf` it was written against; keep the
-two in sync or the parser silently yields zero rows.
+Runs `parse_serial.py` on each `*.log` directly inside `LOG_PATH` (default `../data/raw`),
+writing `<same name>.csv` into `OUTPUT_PATH` (default `../data/processed`). The names are kept,
+so each CSV traces back to its log. Attacker IDs for the summary are read from each log's
+`Starting 2H-FuzzRID attacker` boot lines. A failing log does not stop the others; failures are
+listed at the end and the script exits non-zero.
 
-`R`, `Rhat` and `e` are matched as `-?\d+` (signed — `e` is a residual and can go
-negative); `v1..v7`, `AC`, `ML` are unsigned.
+### `scripts/extract_launch.py` — per-attacker launch times
 
-### `mote_id` vs `src` — the easiest mistake to make
-
-| Column | Source | Meaning |
-|---|---|---|
-| `mote_id` | Cooja wrapper | the **observer** — which mote emitted the line |
-| `src` | firmware payload | the **observed** — which node the detection is about |
-
-`data.py` labels on `src ∈ attackers` and, when attacker IDs are known, drops
-rows *emitted by* attackers (`mote_id ∈ attackers`). Swapping the two inverts
-both operations. The `--atk-nodes` check at the end of `main()` exists precisely
-to catch this: if no row has `src` in the attacker set, it warns that either the
-attacker list or the `src`/`mote_id` order in `EVT` is wrong.
-
-### Time: two columns, one unit trap
-
-```python
-sim_ms = int(stamp) // 1000 if time_unit == "us" else int(stamp)
-...
-"t": sim_ms // 1000,        # SECONDS
-```
-
-- `sim_ms` — milliseconds, carried for traceability.
-- `t` — **seconds**, and load-bearing: `data.py` labels attack rows with
-  `t >= atk_start_s` (e.g. 300 s = `FUZZRID_T_WARM_S`).
-
-Cooja's `time` is microseconds in most versions, hence the `us` default — but
-**verify it once for your Cooja build**. If the unit is wrong by 1000×, every
-row lands on one side of the attack window and the labels are uniformly wrong
-rather than obviously broken. The `[parse] t range a..b s` line in the summary
-is the cheap check: it should span your simulation duration in seconds.
-
-### Fail-loud range check
-
-```python
-for k in V:
-    if not 0 <= int(d[k]) <= 100:
-        raise ValueError(...)
-```
-
-Raises rather than warns. The fuzzy membership functions in `fuzzy.py` assume
-features are normalised to 0..100 on the mote; an un-normalised raw value parses
-fine as an integer and would silently produce meaningless memberships all the
-way through candidate generation and NSGA-II. Cheapest place to catch a firmware
-scaling bug is here.
-
-### Deduplication
-
-The dedup key is the **entire row**, not `(sim_ms, mote_id, src)`. This is
-intentional and documented in the `parse()` docstring: one observer legitimately
-emits several detection events for the same source within a single millisecond,
-carrying different evidence vectors. Keying on the triple would silently discard
-real observations. Only byte-identical rows are dropped — the signature of a
-replayed capture or a mote reboot re-emitting its buffer.
-
-### Output schema
-
-```
-sim_ms,mote_id,src,R,Rhat,e,v1..v7,AC,ML,t,type,action
-```
-
-Fixed by `data.py`, which reads only `type` (filters `== "detection"`),
-`mote_id`, `src`, `t` and `v1..v7`. The rest are carried for traceability, with
-one column worth calling out:
-
-> **`AC` is the firmware's own inference output.** Running `fuzzy.py`'s Sugeno
-> inference over the same `v1..v7` and comparing against `AC` cross-checks the
-> Python model against the deployed C implementation. If they diverge, the
-> offline rule selection is optimising something the mote does not actually
-> compute.
-
-`action` is written empty; `type` is always `detection` (the parser only ever
-emits detection events).
-
-### Diagnostics
-
-All three are sanity assertions in disguise:
-
-- `[warn] N lines carried the marker but did not match EVT` — the `FUZZRID`
-  string was present but the shape was wrong: serial truncation, or `printf`
-  drift away from `EVT`. A nonzero count means you are losing events.
-- `[warn] dropped N fully-identical duplicate rows` — replayed capture or mote
-  reboot.
-- `no detection events parsed` (exit 1) — `LOG` or `EVT` no longer matches the
-  log at all.
-- `[parse] N events → ... | t range ... | observers=... sources=...` — the
-  headline check. Wrong observer/source counts point at topology or ID-layout
-  mismatches.
-
-### Contract
-
-Full specification in `reports/rules-selection-for-FERMAD.md` §12.
+Reads every log once, collecting each attacker's `[ATK-LAUNCHED]` line (stamp → `launch_ms`)
+and the attackers that booted. Writes `data/attack_launch.csv` (`run, mote_id, launch_ms`,
+where `run` is the file name without extension). It **stops with an error** if a booted attacker
+has no launch line or one has two: a missing launch time would make that attacker's events
+unlabellable. `./run_cars.sh --parse` runs it after `parse_serial.sh`.
 
 ---
 
-## `data.py` — event CSVs → labelled feature matrix
+## `common/real_data.py` — load, label, split, compress
 
-Consumes the CSVs `parse_serial.py` writes and produces the `(X, y)` that
-`candidates.py` and `optimize.py` train on. It is where **ground truth is
-manufactured**, so every filter in it is a methodological claim that belongs in
-the paper, not an implementation detail.
+Where ground truth is manufactured, so every rule here is a methodological claim.
 
-Three public functions, called in this order by `run_selection.py`:
+**`_parse_name`** reads the four labels from the file name
+(`<a>-<b>-<honest>-<atkcount>-<c>-S<k>-exp<id>[-mobile]-<round>.csv`): attacker count (4th
+field), attack type, environment (`-mobile` present or not) and round. A name that does not
+match raises an error rather than being guessed.
 
-```
-load_events_dir(csv_dir, ...)          → ev : DataFrame  (all events, labelled)
-train_test_split_by_scenario(ev, ...)  → (tr, te)
-features_labels(tr) / (te)             → X : float64[n,7], y : int8[n], groups
-```
+**`load_real_events(csv_root, label_start="launch", ...)`**
 
-### The labelling rule
+- *File order is fixed* — static first, then round, attacker count, name — because the row order
+  seeds the primary split. This is the order the former folder tree produced, so splits are
+  reproducible.
+- Keeps `type == detection`, coerces $v_i$/`t`/`src`/`mote_id`/`sim_ms` to numbers and drops
+  rows that do not parse.
+- *Attacker set* per file from the attacker count (`ATK_NODES_BY_COUNT`; also in
+  `data/attackers.txt`). See "Known gaps" in `data-cleaning-rules.md`: new topologies need this
+  to come from the launch table instead.
+- *Label*: with `label_start="launch"` (default), $y=1$ iff `src` is an attacker and
+  `sim_ms` ≥ that attacker's launch (`load_launch_times`, from `data/attack_launch.csv`); a
+  number applies one fixed start in seconds to every attacker (`300` = the former rule). A
+  missing launch time for an attacker that appears as `src` raises an error.
+- *Two row-dropping filters* (both default on): rows whose **observer** is an attacker
+  (`drop_attacker_observers` — attackers do not run the IDS honestly) and rows observing an
+  attacker **before its launch** (`drop_prelaunch_attacker_rows` — honest behaviour, so either
+  label would be noise). Note that `is_atk_src` is recomputed after the first filter, because
+  the frame has changed.
+- Prints a summary (events, attack/benign, per scenario, per environment/round/attacker count)
+  — the first thing to check in a run log.
 
-```
-y = 1  if  src ∈ attacker set  AND  t ≥ atk_start_s
-y = 0  otherwise
-```
+**Splits.**
 
-This is deliberately **the same convention as `compute_metrics.py`**, the script
-that produces the online results in the manuscript. Keeping the two identical is
-what makes the offline rule-selection numbers comparable to the deployed
-system's numbers; if they diverge, the comparison is meaningless.
-
-The attacker set is specified one of two ways, and the choice propagates through
-two separate filters:
-
-| Mode | Attacker source test | Attacker observer test |
+| Function | Train | Test |
 |---|---|---|
-| `atk_nodes={5,…,10}` (explicit) | `src.isin(atk_nodes)` | `mote_id.isin(atk_nodes)` |
-| `atk_id_start=33` (ID convention) | `src >= atk_id_start` | `mote_id >= atk_id_start` |
+| `stratified_scenario_split(ev, test_frac, seed)` | a shuffled 70 % of every scenario | the rest |
+| `round_holdout_split(ev, "r3")` | all rounds but r3 | round r3 (mobile) |
+| `scenario_holdout_split(ev, "S<k>")` | the other five attack types | S<k> |
 
-Explicit `atk_nodes` wins when given. The ID-convention fallback exists for the
-topology where attackers occupy the high ID range; the SimFile-A layout
-(attackers 5–10) sits *inside* the benign range and therefore **must** use
-`--atk-nodes`. Using the default `atk_id_start=33` on a 5–10 layout produces
-`y=0` everywhere — no crash, just a silently degenerate dataset. The
-`[data] ... attack=N benign=M` line in `run_selection.py` is the check.
+The primary split shuffles rows *within* a scenario, so autocorrelated events land on both
+sides; the other two splits measure how optimistic that is.
 
-### Two row-dropping filters — both are methodological positions
+**`compress(ev)`** collapses events with the same $v_1..v_7$ **and** label into one row with
+weight `w` = event count; returns `(X, y, w)`. Because the inference depends only on the
+vector, every weighted quantity downstream equals the one on the raw events — lossless, and it
+lets selection use the whole training partition cheaply. The weighted code was checked to
+reproduce the unweighted code bit for bit on the same data.
 
-```python
-if drop_attacker_observers:          # default True
-    ev = ev[~ev["mote_id"].isin(atk_nodes)]
-...
-if drop_prelaunch_attacker_rows:     # default True
-    ev = ev[~(is_atk_src & ~in_window)]
-```
+**`vector_ceiling(ev)`** predicts each distinct vector as its majority label (ties → benign) and
+returns that F1 and FPR: the best any classifier of $v_1..v_7$ can do on those events.
 
-**1. Rows emitted *by* attacker motes are dropped.** An attacker does not run
-the IDS, so its serial output is not an observation — it is noise from a node
-that, in the real deployment, would not be reporting at all. Keeping these rows
-would train the rule base on evidence vectors that can never occur in the field.
+**`stratified_subsample(ev, n_target, seed)`** — optional sample, proportional within each
+scenario × environment × attacker count × round cell, at least one event per cell. Only used
+when `TRAIN_SAMPLE` > 0 (e.g. `QUICK=1`).
 
-**2. Attacker-sourced rows *before* the attack launches are dropped, not
-labelled benign.** During warm-up (`t < atk_start_s`, e.g. 300 s =
-`FUZZRID_T_WARM_S`) the attacker is behaving honestly. Labelling those rows
-`y=0` would be defensible but injects label noise: the node *is* an attacker,
-its neighbourhood statistics may already be drifting, and the ground truth is
-genuinely ambiguous. Dropping them keeps the negative class clean.
+**`features_labels(ev)`** — unweighted `(X, y, groups)`, kept for ad-hoc analysis.
 
-Note the asymmetry, which is intentional: **benign** nodes' pre-launch rows are
-kept as `y=0`. Only the ambiguous attacker-pre-launch rows go.
+---
 
-Both filters are keyword arguments defaulting to `True`, so the effect of
-turning them off is one call away if a reviewer asks for the ablation.
+## `common/fuzzy.py` — the inference core
 
-### Why `is_atk_src` is recomputed
+**`MFConfig(low=(20,50), med=(20,50,80), high=(50,80))`** — Low, Medium, High on 0–100, the same
+sets as the firmware's `mu_L/mu_M/mu_H`. `memberships(X)` returns an `(n, 7, 3)` array; with
+integer arithmetic it calls `_memberships_int`, which uses the firmware's truncating integer
+division (`(dist * 100) / width`) on integer inputs and returns `k/100` so the rest of the code
+is unchanged.
 
-```python
-is_atk_src = ev["src"].isin(atk_nodes)
-if drop_attacker_observers:
-    ev = ev[~ev["mote_id"].isin(atk_nodes)]
-    is_atk_src = ev["src"].isin(atk_nodes)   # ← recomputed, not reused
-```
+**`set_arithmetic("int" | "float")`** — a module-level switch read by `memberships` and
+`sugeno_ac`. `int` (default) is bit-exact with `fuzzrid-fuzzy.c` (checked against its compiled C
+functions); `float` is the continuous model. Entry scripts call it right after parsing
+`--arith`.
 
-The mask is built before the filter, then the filter shortens `ev`. A stale
-boolean Series still carries the *old* index, so reusing it would misalign
-against the filtered frame. Recomputing after the drop is the fix — not
-redundancy.
+**`firing_matrix(M, antecedents)`** — `(n_rows, n_rules)` min t-norm over the specified terms;
+an all-don't-care rule fires at 0.
 
-### Silent coercion
+**`sugeno_ac(W, z, subset=None)`** — the weighted average. `int`: weights `rint(W*100)`,
+$\lfloor\sum w z / (1+\sum w)\rfloor$ as the firmware; `float`: $\sum wz/(\sum w+0.01)$.
 
-```python
-ev[c] = pd.to_numeric(ev[c], errors="coerce")
-ev = ev.dropna(subset=V_COLS + ["t", "src", "mote_id"])
-```
+**Rule encoding** — antecedent = 7-tuple over {0 don't-care, 1 L, 2 M, 3 H}; consequent
+$z \in \{0,25,50,75,100\}$. `rule_str` renders a rule as text.
 
-Unparseable values in `v1..v7`, `t`, `src` or `mote_id` become `NaN` and the row
-disappears **without a count or a warning** — the opposite of `parse_serial.py`,
-which raises on out-of-range features and prints a tally of malformed lines. In
-a clean pipeline nothing should reach here that `parse_serial.py` let through,
-so this is a belt-and-braces guard against hand-edited CSVs. If event counts ever
-look low, this is a place to instrument.
+---
 
-Missing `v1..v7` **columns** do raise (`ValueError: {fn}: missing columns …`); it
-is only bad *values* that vanish quietly.
+## CARS (flat selection)
 
-### Scenario labels come from filenames
+### `common/candidates.py` — the candidate pool
 
-```python
-df["scenario"] = fn.split("_")[0]
-```
+`build_pool(X, y, mf, max_terms=4, min_support=0.005, conf_margin=0.15, wm_max_rules=200, w=None)`:
 
-`S1_decrease_jump_run1.csv` → scenario `S1`. This is the only place scenario
-identity enters the pipeline, and it drives the stratified split below. **Rename
-a file carelessly and you change the experimental design** — e.g. dropping the
-prefix collapses every run into one scenario named after whatever precedes the
-first underscore.
+1. `enumerate_antecedents(4)` — every antecedent with 1–4 specified features (3,990).
+2. `wang_mendel_antecedents(M, 200, w)` — each row's strongest term per feature gives a 7-term
+   cell; cells ranked by (weighted) occupancy, top 200.
+3. Deduplicate, then `firing_matrix` once for all candidates.
+4. `assign_consequents(W, y, w)` — confidence = firing-weighted share of attack events, support
+   = mean firing strength; with weights the sums are `w @ W` (no copy of `W`); $z$ = nearest
+   singleton to 100·conf, ties to the smaller.
+5. Prune: `support >= min_support` and `|conf - 0.5| >= conf_margin`. Side effect: no kept rule
+   can have $z = 50$.
 
-### `train_test_split_by_scenario`
+Returns `antecedents, z, conf, support, names (G<i>(enum|wm)), W`. No hand-crafted rules exist.
 
-Splits **within** each scenario rather than across scenarios, so all six attack
-variants appear in both train and test. This is required by the pipeline's
-premise: rule selection must see every variant, or the selected base is tuned to
-a subset of the attack taxonomy.
+### `common/optimize.py` — NSGA-II
 
-```python
-for _, grp in ev.groupby("scenario"):
-    idx = grp.index.to_numpy().copy()
-    rng.shuffle(idx)                       # uniform random, seeded
-    cut = int(len(idx) * (1.0 - test_frac))
-```
+- `f1_fpr(ac, y, ac_thr=65, w=None)` — confusion counts (weighted sums of `w` when given), F1,
+  FPR, precision, recall.
+- `RuleSelectionProblem` — objectives $(1-F_1,\ \mathrm{FPR},\ |S|/\text{max\_rules})$ on the
+  training rows, constraints $\text{min\_rules} \le |S| \le \text{max\_rules}$; an empty subset
+  gets $F=[1,1,0]$ and is infeasible.
+- `random_population` — sparse random subsets (density 0.02). No seeding.
+- `run_nsga2` — pymoo NSGA-II, uniform crossover 0.9, bit-flip $1/n$, duplicates eliminated.
+- `knee_solution(F, w=(0.6,0.3,0.1))` — min–max normalise the training objectives, weighted sum,
+  minimum. A preference-weighted choice, not a geometric knee.
 
-Two things worth being precise about:
+### `common/report.py` — tables and C export
 
-- Despite the docstring's phrase "chronologically-shuffled", the split is a
-  **uniform random shuffle within scenario** — there is no temporal ordering in
-  it. Consecutive events from the same observer/source pair are highly
-  correlated, so a random split lets near-duplicate rows straddle train and test.
-  This inflates held-out scores relative to a temporal or leave-one-scenario-out
-  split. `README.md`'s guardrail — "for stronger evidence, do
-  leave-one-scenario-out" — is exactly the fix, and this is the function it
-  would replace.
-- `ev.loc[sorted(tr_idx)]` is label-based indexing, which is safe only because
-  `load_events_dir` ends with `reset_index(drop=True)`. Passing in a filtered
-  frame that has not been re-indexed would misbehave.
+- `pareto_table` — one row per front member: train and test F1/FPR, test recall/precision, rule
+  count, rule names (weighted by `w_tr` / `w_te`).
+- `rules_listing` — human-readable rules with support and confidence.
+- `export_c` — the selected base as the rule block of `fuzzrid_fuzzy_infer_ac()`: nested
+  `min2()` per rule and the firmware's `num/den` loop with `den = 1`.
 
-`seed` (default 42) makes the split reproducible; `run_selection.py` threads the
-same `--seed` into NSGA-II, so a multi-seed sweep varies split *and* search
-together — which is what you want for the reliability claim in `README.md`
-("run with `--seed 1..10` and report the variation of the Pareto knee").
+### `methods/cars/run_real_selection.py`
 
-### `features_labels`
+`run_one(tag, ev_train, ev_test, ...)`: optional sample (`--train-sample`, 0 = all) →
+`compress` train and test → print sizes and the **data ceiling** → `build_pool` → test firing
+matrix → `run_nsga2` → `pareto_front.csv` → knee base → `selected_rules.txt` (with the ceiling
+line) and `selected_rules.c`. `main()` loads the corpus once and runs the primary and
+round-holdout splits.
 
-```python
-X = ev[V_COLS].to_numpy(dtype=np.float64)   # (n, 7), 0..100
-y = ev["y"].to_numpy(dtype=np.int8)         # (n,)
-groups = ev["scenario"].to_numpy()          # (n,)
-```
+### `methods/cars/run_loso.py`
 
-Column order is fixed by `V_COLS` and must match `fuzzy.py`'s feature ordering —
-`X[:, i]` is `v{i+1}` everywhere downstream.
+Imports `run_one` and runs it for each held-out attack type S1–S6 (smaller default NSGA-II
+budget), then prints the per-fold table and the mean.
 
-`groups` is returned for grouped cross-validation but `run_selection.py`
-currently discards it (`X_tr, y_tr, _ = features_labels(tr)`). It is the hook a
-leave-one-scenario-out evaluation would use.
+### `methods/cars/finalize_selection.py`
 
-### Defaults to double-check per experiment
+Rebuilds exactly the same pool (same split, seed, sample, MFs, arithmetic, labels), picks the
+best test F1 within the rule budget (`pick_best`, ties within 0.002 → fewer rules), maps the
+row's rule names back to a mask (asserting the count matches) and writes
+`selected_rules_best_f1.{txt,c}`. It chooses using the **test** split; report the knee numbers as
+the clean result.
 
-| Parameter | Default | Must match |
-|---|---|---|
-| `atk_id_start` | `33` | your mote-ID layout — **wrong for the 5–10 layout** |
-| `atk_start_s` | `300` | `FUZZRID_T_WARM_S` in the firmware |
-| `test_frac` | `0.3` (via `run_selection.py`) | — |
-| `seed` | `42` | — |
+---
+
+## T-HFIS (hierarchical selection)
+
+### `methods/thfis/hierarchy.py`
+
+Only the layout: `RA_IN = [v1, v3, v4]`, `SI_IN = [v2, v5]`, `CX_IN = [v6, v7]` (as column
+indices) and the input names per unit; TOP takes RA, SI, CX. No rules.
+
+### `methods/thfis/hfs_pipeline.py`
+
+- `build_unit_pool(X_local, y, mf, tag, w=...)` — full enumeration of the unit's antecedents,
+  weighted certainty-grade consequents, pruning (support floor 0.01, margin 0.15).
+- `build_all_pools(X, y, mf, w=...)` — the three layer-1 pools, then the TOP pool fitted against
+  a *reference* RA/SI/CX: the layer-1 pools with all their rules on.
+- `hfs_infer` — real two-layer inference for any mask (`split_mask` / `pool_dims` cut the joint
+  mask into the four units).
+- `HFSSelectionProblem` / `run_nsga2_hfs` — joint NSGA-II over `[RA|SI|CX|TOP]`, same objectives
+  and constraints as CARS; each evaluation recomputes RA/SI/CX from the individual's own layer-1
+  rules.
+- `hfs_pareto_table`, `rules_listing_hfs` — as in CARS, per unit.
+- `export_c_hfs(..., mf)` — writes a **complete, compilable `fuzzrid-fuzzy-hfs.c`**: MFs with the
+  run's breakpoints, the integer Sugeno helper, one function per unit (`(void)` for unused
+  inputs; `return 0` for a unit with no rules) and the two entry points declared in
+  `c/fuzzrid-fuzzy-hfs.h`. Bit-exact with `hfs_infer` under `int` arithmetic. It is copied into
+  the firmware unchanged — nothing is merged by hand.
+
+### Entry scripts
+
+`run_hfs_real_selection.py`, `run_hfs_loso.py` and `finalize_hfs_selection.py` mirror their CARS
+counterparts (compress, ceiling, selection, best-F1 re-pick), using the functions above.
+
+---
+
+## Running
+
+### `config.sh`
+
+Every setting, shared by both runners, each overridable as `VAR=value ./run_cars.sh`: seeds,
+rule budget, `MF_HIGH`, `AC_THR`, `ARITH`, `LABEL_START`, `TEST_FRAC`, `CONF_MARGIN`, NSGA-II
+sizes and training sample (0 = all) for select and LOSO, `CSV_ROOT`, and the per-method pool
+settings (`CARS_MAX_TERMS`, `CARS_MIN_SUPPORT`, `THFIS_MIN_SUPPORT`). `QUICK=1` swaps in tiny
+sizes for a smoke test.
+
+### `scripts/run_common.sh`
+
+Sourced by both runners: parses `--parse`, `--from <step>`, `--out <dir>`, `-h`; creates
+`outputs/<method>/run_<date>_<time>/` (never reusing an existing folder) and writes
+`config.txt` with every setting and the git commit (`-dirty` if uncommitted); on `--from`,
+reloads that `config.txt` so a resumed run uses the original settings. Step 0 checks the Python
+libraries and counts the CSVs; step 1 (`--parse`) runs `parse_serial.sh` and
+`extract_launch.py`. `run_step` logs a step to a file, echoes only the result lines, and on
+failure prints the end of the log and stops.
+
+### `run_cars.sh` / `run_thfis.sh`
+
+Set `METHOD` and the lines to echo, source `run_common.sh`, then per seed run select, LOSO and
+finalize with identical arguments (`--mf-high`, `--arith`, `--label-start`, rule budget, …), and
+finally `summarize_run.py`.
+
+### `scripts/summarize_run.py`
+
+Reads every `seed_<s>/…/selected_rules*.txt` of a run and writes `SUMMARY.md`: rules, F1, FPR,
+recall, precision and the data ceiling per split (mean ± std over seeds), and the LOSO mean F1.
+
+### `scripts/install_lib.sh`
+
+Creates the repo-root `.venv` if needed and installs `numpy`, `pandas`, `pymoo`.

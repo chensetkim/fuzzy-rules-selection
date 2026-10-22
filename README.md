@@ -44,7 +44,7 @@ outputs/
   legacy_2026-09/            results quoted in reports/, made with the old settings (see its README)
 
 reports/          write-ups and results (start with offline-rule-selection-methods.md;
-                  data cleaning: data-cleaning-rules.md)
+                  data cleaning: data-cleaning-rules.md; running: how-to-run.md)
 ```
 
 ## Running

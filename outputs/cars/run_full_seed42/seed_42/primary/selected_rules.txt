@@ -1,0 +1,19 @@
+Scenario-stratified 70/30 split (all env/round/atkcount pooled; all 6 attack variants on both sides).
+Knee-point rule base (14 rules)
+test F1=0.8778 FPR=0.0051 recall=0.7964 precision=0.9778
+data ceiling on this test: F1<=0.9877 FPR=0.0029
+
+     G12(enum) IF v5 is L AND v6 is M THEN AC = L (25)   (support=0.461, conf=0.21)
+    G102(enum) IF v3 is H AND v5 is L AND v6 is L AND v7 is L THEN AC = VH (100)   (support=0.070, conf=0.95)
+    G115(enum) IF v3 is H AND v4 is L AND v5 is L THEN AC = H (75)   (support=0.187, conf=0.73)
+    G202(enum) IF v2 is L AND v3 is H AND v5 is L AND v7 is L THEN AC = L (25)   (support=0.064, conf=0.30)
+    G214(enum) IF v2 is M AND v7 is L THEN AC = VH (100)   (support=0.041, conf=0.98)
+    G262(enum) IF v2 is M AND v3 is H AND v7 is L THEN AC = VH (100)   (support=0.040, conf=0.99)
+    G265(enum) IF v2 is M AND v3 is H AND v6 is M THEN AC = VH (100)   (support=0.028, conf=0.99)
+    G331(enum) IF v2 is H AND v4 is M AND v5 is L AND v6 is M THEN AC = H (75)   (support=0.021, conf=0.74)
+    G372(enum) IF v2 is H AND v3 is H AND v4 is H AND v7 is L THEN AC = VH (100)   (support=0.037, conf=0.89)
+    G449(enum) IF v1 is L AND v3 is H THEN AC = H (75)   (support=0.155, conf=0.73)
+    G551(enum) IF v1 is L AND v2 is H THEN AC = VH (100)   (support=0.073, conf=1.00)
+      G586(wm) IF v1 is L AND v2 is H AND v3 is H AND v4 is L AND v5 is L AND v6 is L AND v7 is L THEN AC = VH (100)   (support=0.021, conf=1.00)
+    G622(enum) IF v1 is H AND v4 is H THEN AC = H (75)   (support=0.022, conf=0.82)
+    G652(enum) IF v1 is H AND v3 is H AND v5 is L AND v6 is L THEN AC = VH (100)   (support=0.031, conf=0.98)

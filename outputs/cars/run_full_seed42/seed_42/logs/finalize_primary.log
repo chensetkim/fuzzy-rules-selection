@@ -1,0 +1,1 @@
+[finalize] outputs/cars/run_full_seed42/seed_42/primary (primary): 23 rules, test F1=0.9252 FPR=0.0215 -> outputs/cars/run_full_seed42/seed_42/primary/selected_rules_best_f1.txt
