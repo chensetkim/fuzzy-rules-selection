@@ -22,10 +22,10 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "common"))
 
-from fuzzy import MFConfig
+from fuzzy import set_arithmetic, MFConfig
 from optimize import f1_fpr
-from hfs_pipeline import (build_all_pools, pool_dims, joint_expert_mask,
-                          hfs_infer, rules_listing_hfs, export_c_hfs, overlap_stats,
+from hfs_pipeline import (build_all_pools, pool_dims,
+                          hfs_infer, rules_listing_hfs, export_c_hfs,
                           split_mask)
 from real_data import (load_real_events, features_labels, stratified_scenario_split,
                        round_holdout_split, stratified_subsample)
@@ -57,9 +57,12 @@ def main():
     ap.add_argument("--test-frac", type=float, default=0.3)
     ap.add_argument("--train-sample", type=int, default=40000)
     ap.add_argument("--mf-high", type=str, default="50,80")
+    ap.add_argument("--arith", choices=["int", "float"], default="int",
+                    help="int = firmware integer arithmetic (default), float = continuous model")
     ap.add_argument("--min-rules", type=int, default=12)
     ap.add_argument("--max-rules", type=int, default=35)
     args = ap.parse_args()
+    set_arithmetic(args.arith)
 
     hc, hd = (int(x) for x in args.mf_high.split(","))
     mf = MFConfig(high=(hc, hd))
@@ -76,7 +79,6 @@ def main():
     ra_pool, si_pool, cx_pool, top_pool = build_all_pools(
         X_trs, y_trs, mf, min_support=args.min_support, conf_margin=args.conf_margin)
     dims = pool_dims(ra_pool, si_pool, cx_pool, top_pool)
-    expert_mask = joint_expert_mask(ra_pool, si_pool, cx_pool, top_pool)
 
     df = pd.read_csv(os.path.join(args.out_dir, "pareto_front.csv"))
     if "rules" not in df.columns:
@@ -96,8 +98,6 @@ def main():
 
     ac_best, _ = hfs_infer(X_te, ra_pool, si_pool, cx_pool, top_pool, mask, mf, dims)
     f1_b, fpr_b, cm_b = f1_fpr(ac_best, y_te, args.ac_thr)
-    ov = overlap_stats(mask, expert_mask)
-    n_expert_total = int(expert_mask.sum())
 
     out_txt = os.path.join(args.out_dir, "selected_rules_best_f1.txt")
     with open(out_txt, "w") as f:
@@ -106,12 +106,10 @@ def main():
                 f"({int(mask.sum())} rules total: RA={int(ra_m.sum())} SI={int(si_m.sum())} "
                 f"CX={int(cx_m.sum())} TOP={int(top_m.sum())})\n"
                 f"test F1={f1_b:.4f} FPR={fpr_b:.4f} recall={cm_b['recall']:.4f} "
-                f"precision={cm_b['precision']:.4f}\n"
-                f"hand-crafted-rule overlap: {ov['n_expert_in_base']}/{n_expert_total} kept, "
-                f"Jaccard={ov['jaccard']:.3f}\n\n"
+                f"precision={cm_b['precision']:.4f}\n\n"
                 + rules_listing_hfs(mask, dims, ra_pool, si_pool, cx_pool, top_pool) + "\n")
     export_c_hfs(mask, dims, ra_pool, si_pool, cx_pool, top_pool,
-                os.path.join(args.out_dir, "selected_rules_best_f1.c"))
+                os.path.join(args.out_dir, "selected_rules_best_f1.c"), mf)
     print(f"[finalize-hfs] {args.out_dir} ({args.split}): {int(mask.sum())} rules, "
           f"test F1={f1_b:.4f} FPR={fpr_b:.4f} -> {out_txt}")
 

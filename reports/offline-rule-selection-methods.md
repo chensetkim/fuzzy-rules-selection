@@ -15,6 +15,14 @@ is part of the reason for choosing CARS.
 > Naming: the IDS was renamed from 2H-FuzzRID to EF-RMAD, and then to **FERMAD**. Code identifiers
 > (`fuzzrid_fuzzy_infer_ac`, `FUZZRID_TAU_Q_PCT`, …) still use the old name.
 
+> **Status (2026-10-22).** §1–§4 and §6–§7 describe the current code. The method changed on
+> 2026-10-22: no expert rules are injected into any pool or initial population, the rule
+> budget is 12–35, High is 0 at 50 → 1 at 80, and rules are scored with the mote's integer
+> arithmetic. **The numbers in §3.7, §4.4 and §5 are legacy results** made with the old
+> settings (expert-seeded, 12–29 rules, High 60–90, float scoring; files in
+> `outputs/legacy_2026-09/`). They will be replaced after new `./run_cars.sh` /
+> `./run_thfis.sh` runs.
+
 ---
 
 ## 1. The problem both methods solve
@@ -50,28 +58,31 @@ generate a large pool of candidate rules from data
 
 ## 2. Shared fuzzy inference core ([`fuzzy.py`](../common/fuzzy.py))
 
-Both methods use the same `fuzzy.py`. The CARS and T-HFIS copies are byte-identical, and
-so are `candidates.py` and `optimize.py`. This module re-implements the on-mote integer
-inference in NumPy. The rule base scored offline therefore uses the same arithmetic the
-firmware will run.
+Both methods use the same shared modules in `common/` (`fuzzy.py`, `candidates.py`,
+`optimize.py`, `report.py`, `real_data.py`). `fuzzy.py` re-implements the on-mote integer
+inference in NumPy. With the default `ARITH=int` it is bit-exact with the firmware
+(§2.3), so the rule base scored offline is scored with the arithmetic the mote will run.
 
 ### 2.1 Membership functions
 
-Three linguistic terms per feature, on $[0,100]$ (`MFConfig`, [`fuzzy.py:33`](../common/fuzzy.py#L33)):
+Three linguistic terms per feature, on $[0,100]$ (`MFConfig`, [`fuzzy.py:55`](../common/fuzzy.py#L55)):
 
 $$
 \mu_L(x)=\mathrm{clip}\!\left(\tfrac{50-x}{30}\right),\quad
 \mu_M(x)=\mathrm{clip}\!\left(\min\!\left(\tfrac{x-20}{30},\tfrac{80-x}{30}\right)\right),\quad
-\mu_H(x)=\mathrm{clip}\!\left(\tfrac{x-60}{30}\right)
+\mu_H(x)=\mathrm{clip}\!\left(\tfrac{x-50}{30}\right)
 $$
 
-- Low is a left shoulder (1 up to 20, 0 at 50).
-- Medium is a triangle (20–50–80).
-- High is a right shoulder (0 at 60, 1 from 90). This is the March-2026 setting; `--mf-high 50,80` reproduces the older one.
+- **Low (L)**: trapezoidal, $\mu_L(v) = 100$ on $[0, 20]$, decaying linearly to 0 at $v = 50$.
+- **Medium (M)**: triangular, 0 at $v = 20$, peak 100 at $v = 50$, 0 at $v = 80$.
+- **High (H)**: trapezoidal, 0 at $v = 50$, rising linearly to 100 at $v = 80$, saturated on $[80, 100]$.
+
+These are the same sets as `mu_L`/`mu_M`/`mu_H` in the firmware's `fuzzrid-fuzzy.c`.
+`--mf-high 60,90` (`MF_HIGH` in `config.sh`) reproduces the earlier High set.
 
 The breakpoints stay **fixed** during rule selection. Only the rule set is optimised.
-The sets are not a strong (Ruspini) partition: on $x\in[50,60]$ only $\mu_M$ is non-zero.
-This is intentional, because it suppresses false High firings.
+The three sets form a strong (Ruspini) partition: at every $x$ the memberships sum to 1
+(L+M on $[20,50]$, M+H on $[50,80]$).
 
 ### 2.2 Rule encoding
 
@@ -84,19 +95,30 @@ Example: R3 = `(0,0,0,H,0,L,0) → 75` reads "IF $v_4$ is High AND $v_6$ is Low 
 
 ### 2.3 Firing strength and defuzzification
 
-The firing strength uses the min t-norm over the **specified** terms only (`firing_matrix`, [`fuzzy.py:54`](../common/fuzzy.py#L54)):
+The firing strength uses the min t-norm over the **specified** terms only (`firing_matrix`, [`fuzzy.py:93`](../common/fuzzy.py#L93)):
 
 $$w_r(x)=\min_{i:\,A_r[i]\neq 0}\mu_{A_r[i]}(x_i)$$
 
 Don't-care positions are skipped, so a 2-term rule is not penalised for the other five
 features. An all-don't-care rule fires at 0.
 
-Defuzzification is the zero-order Sugeno weighted average (`sugeno_ac`, [`fuzzy.py:77`](../common/fuzzy.py#L77)):
+Defuzzification is the zero-order Sugeno weighted average (`sugeno_ac`, [`fuzzy.py:116`](../common/fuzzy.py#L116)).
+Two arithmetic modes exist (`set_arithmetic`, [`fuzzy.py:29`](../common/fuzzy.py#L29); `ARITH` in `config.sh`):
 
-$$AC(x)=\frac{\sum_{r\in S}w_r(x)\,z_r}{\sum_{r\in S}w_r(x)+\varepsilon},\qquad \varepsilon=0.01$$
+- **`int` (default): the mote's arithmetic.** Inputs are integers 0–100. Each membership
+  slope is computed with truncating integer division, e.g. $\mu_H(v)=\lfloor 100\,(v-50)/30\rfloor$,
+  so memberships and firing strengths are integers 0–100. Then
+  $$AC(x)=\left\lfloor\frac{\sum_{r\in S}w_r(x)\,z_r}{1+\sum_{r\in S}w_r(x)}\right\rfloor$$
+  exactly as `fuzzrid-fuzzy.c` computes it (`num/den`, `den = 1`). This mode was checked
+  against the firmware's own C functions: identical AC on 40,000 of 40,000 cases
+  (200 random rule bases × 200 random inputs).
+- **`float`: the continuous model.** Memberships in $[0,1]$ and
+  $AC=\sum w_r z_r / (\sum w_r+\varepsilon)$ with $\varepsilon=0.01$, the $[0,1]$-scale analogue
+  of `den = 1`. It differs from the mote mainly where the rules barely fire: on random
+  inputs the flat engine's decision differed in 0.14 % of cases and a two-layer T-HFIS
+  base's in 4.6 %, because each layer's output is also truncated on the mote.
 
-$\varepsilon=0.01$ on the $[0,1]$ weight scale is the analogue of the firmware's `den = 1`
-on its 0–100 integer scale. If no rule fires, $AC=0$ ("no evidence → no attack").
+If no rule fires, $AC=0$ ("no evidence → no attack").
 
 ---
 
@@ -117,7 +139,7 @@ on its 0–100 integer scale. If no rule fires, $AC=0$ ("no evidence → no atta
 
 $$y=1 \iff src\in\text{attackers} \;\wedge\; t\ge 300\,\text{s (attack launch)}$$
 
-**Two exclusion rules** (`load_real_events`, [`real_data.py:69`](../common/real_data.py#L69)):
+**Two exclusion rules** (`load_real_events`, [`real_data.py:65`](../common/real_data.py#L65)):
 
 1. *Rows observed **by** an attacker are dropped.* An attacker does not run the IDS honestly, so its observations are not evidence the real system would use.
 2. *Rows observed **of** an attacker before launch are dropped*, not labelled benign. Before launch the attacker behaves honestly. Labelling those rows either way would put label noise into an unlearnable region.
@@ -130,24 +152,24 @@ $$y=1 \iff src\in\text{attackers} \;\wedge\; t\ge 300\,\text{s (attack launch)}$
 
 Two generators feed one pool. They complement each other.
 
-**Generator A: Wang–Mendel-style cell rules** (`wang_mendel_antecedents`, [`candidates.py:37`](../common/candidates.py#L37)).
+**Generator A: Wang–Mendel-style cell rules** (`wang_mendel_antecedents`, [`candidates.py:38`](../common/candidates.py#L38)).
 
 - Each training sample is assigned to its strongest term per feature (argmax membership), which gives one full 7-term antecedent.
 - The unique cells are ranked by occupancy and capped at 200.
 - This anchors the pool in the regions of the $3^7$ grid that the data actually occupies.
 - It deviates from textbook Wang–Mendel: there is no rule degree, and conflicts are resolved by the consequent step below.
 
-**Generator B: bounded enumeration** (`enumerate_antecedents`, [`candidates.py:50`](../common/candidates.py#L50)).
+**Generator B: bounded enumeration** (`enumerate_antecedents`, [`candidates.py:51`](../common/candidates.py#L51)).
 
 - It generates every antecedent that specifies 1 to 4 features:
 
 $$\sum_{k=1}^{4}\binom{7}{k}3^k = 21+189+945+2835 = 3990 \text{ rules}$$
 
 - This generator is needed because Wang–Mendel rules always use all 7 features, while R1–R18 use 1–5.
-- Without it, the short, readable rules (including the expert base) could not be reached.
+- Without it, short, readable rules like those of R1–R18 could not be reached.
 - The 4-term cap is an interpretability limit.
 
-**Consequent assignment: Ishibuchi certainty grade** (`assign_consequents`, [`candidates.py:62`](../common/candidates.py#L62)). The training set is used for this:
+**Consequent assignment: Ishibuchi certainty grade** (`assign_consequents`, [`candidates.py:63`](../common/candidates.py#L63)). The training set is used for this:
 
 $$
 \mathrm{conf}(r)=\frac{\sum_{x:y=1}w_r(x)}{\sum_x w_r(x)},\qquad
@@ -163,20 +185,18 @@ $$\mathrm{supp}(r)\ge 0.005 \quad\text{and}\quad |\mathrm{conf}(r)-0.5|\ge 0.15$
 
 - The support floor removes rules that almost never fire.
 - The confidence margin removes rules that fire equally on attacks and benign traffic. Such rules carry no information and only dilute the weighted average.
-- Side effect: a kept rule has conf ≤ 0.35 or ≥ 0.65, so **a generated rule can never get $z=50$**. Only an expert rule (R12) can have that consequent.
+- Side effect: a kept rule has conf ≤ 0.35 or ≥ 0.65, so **no selected rule can get $z=50$**.
 
-**Expert injection.**
-
-- R1–R18 are always added to the pool and flagged in `expert_mask`.
-- If a generated rule has the same antecedent as an expert rule, the generated copy is dropped. The expert rule keeps its designed consequent.
-- Expert and generated rules then compete in one pool under one objective, which makes "the optimiser kept k of 18 expert rules" a meaningful statement.
-- On the real corpus the final pool has **701 candidates, 18 of them expert**.
+**No hand-crafted rules.** The pool is purely data-driven: R1–R18 are never added to it,
+and the code no longer contains R1–R18 at all (no built-in baseline, no overlap report).
+The pool size is printed in each run's `select.log` (legacy run: 701 candidates, of
+which 18 were injected expert rules).
 
 ### 3.3 Multi-objective subset selection ([`optimize.py`](../common/optimize.py))
 
-**Encoding.** A chromosome is a binary vector of length $|P|=701$. Bit $j$ = 1 means "rule $j$ is in the base". The space has $2^{701}$ subsets, so exhaustive search is impossible and a metaheuristic is justified.
+**Encoding.** A chromosome is a binary vector of length $|P|$, several hundred candidates. Bit $j$ = 1 means "rule $j$ is in the base". The space has $2^{|P|}$ subsets, so exhaustive search is impossible and a metaheuristic is justified.
 
-**Objectives, all minimised** (`RuleSelectionProblem._evaluate`, [`optimize.py:58`](../common/optimize.py#L58)):
+**Objectives, all minimised** (`RuleSelectionProblem._evaluate`, [`optimize.py:56`](../common/optimize.py#L56)):
 
 | | Objective | Reason |
 |---|---|---|
@@ -184,7 +204,7 @@ $$\mathrm{supp}(r)\ge 0.005 \quad\text{and}\quad |\mathrm{conf}(r)-0.5|\ge 0.15$
 | $f_2$ | FPR (train) | operational cost. It is a separate axis because, under the base-rate fallacy, even small FPRs dominate the alert stream at deployment scale |
 | $f_3$ | $\lvert S\rvert/\text{max\_rules}$ | Z1 RAM/flash budget and interpretability |
 
-**Constraints:** $12 \le |S| \le 29$ (`min_rules`, `max_rules`). An empty chromosome gets $F=[1,1,0]$ and is marked infeasible.
+**Constraints:** $12 \le |S| \le 35$ (`MIN_RULES`, `MAX_RULES` in `config.sh`). An empty chromosome gets $F=[1,1,0]$ and is marked infeasible.
 
 **Algorithm:** NSGA-II (pymoo). The settings for the real-data run are:
 
@@ -196,24 +216,15 @@ $$\mathrm{supp}(r)\ge 0.005 \quad\text{and}\quad |\mathrm{conf}(r)-0.5|\ge 0.15$
 | Duplicates | eliminated | keeps diversity on a plateau-heavy landscape |
 | Fitness data | 40,000-row stratified subsample of the train split | makes the firing matrix tractable; all reported metrics use the **full** test split |
 
-**Expert-seeded initial population** (`seeded_population`, [`optimize.py:78`](../common/optimize.py#L78)):
-
-- Individual 0 *is* R1–R18.
-- Individuals 1–9 are R1–R18 with 3 random bit flips.
-- The rest are sparse random individuals (about 2 % density).
-
-Because the expert base is in the search from generation 0, the result is interpretable either way:
-
-- If R1–R18 survives, it is empirically non-dominated.
-- If it is displaced, the optimiser found something better.
-
-Without seeding, "the optimiser didn't pick R1–R18" could just mean "it never sampled it".
+**Random initial population** (`random_population`, [`optimize.py:76`](../common/optimize.py#L76)):
+every individual is a sparse random subset (each rule on with probability 0.02). No
+expert base is seeded, so the search is not anchored on R1–R18.
 
 ### 3.4 Picking one base from the Pareto front
 
 NSGA-II returns a front of non-dominated bases. Two pickers exist:
 
-- **Knee pick** (`knee_solution`, [`optimize.py:113`](../common/optimize.py#L113)).
+- **Knee pick** (`knee_solution`, [`optimize.py:104`](../common/optimize.py#L104)).
   - Each objective is min-max normalised, then weighted $0.6/0.3/0.1$ (F1 / FPR / size) and summed; the minimum wins.
   - It uses **training objectives only**.
   - Despite the name, this is a preference-weighted scalarisation, not a geometric knee.
@@ -231,12 +242,11 @@ NSGA-II returns a front of non-dominated bases. Two pickers exist:
 
 | File | Content |
 |---|---|
-| `pareto_front.csv` | every non-dominated base: train/test F1, FPR, recall, precision, size, expert overlap |
+| `pareto_front.csv` | every non-dominated base: train/test F1, FPR, recall, precision, size |
 | `selected_rules.txt` | chosen base, human-readable, with per-rule support and confidence |
 | `selected_rules.c` | same base as the rule block of `fuzzrid_fuzzy_infer_ac()` |
-| `overlap_report.txt` | Jaccard and coverage vs R1–R18 for every front member |
 
-`export_c` ([`report.py:69`](../common/report.py#L69)) emits one line per rule, with nested
+`export_c` ([`report.py:70`](../common/report.py#L70)) emits one line per rule, with nested
 `min2()` for multi-term antecedents. It then emits the same $\varepsilon=1$ integer weighted
 average as the firmware:
 
@@ -250,21 +260,27 @@ return (uint8_t)(num / den);
 ```
 
 The base deploys **unchanged**. There is no manual transcription step between the rules
-that were evaluated and the rules that run on the mote.
+that were evaluated and the rules that run on the mote, and with `ARITH=int` the offline
+scores are the mote's own AC values.
 
 ### 3.6 Validation design: three splits
 
 | Split | Train | Test | Question |
 |---|---|---|---|
 | **Primary** ([`real_data.py:153`](../common/real_data.py#L153)) | 70 % of each scenario, shuffled | remaining 30 % | held-out accuracy |
-| **Round-holdout** ([`real_data.py:171`](../common/real_data.py#L171)) | mobile r1+r2, static r1 | mobile **r3** | does it transfer to a fresh mobility realisation? |
-| **LOSO** ([`real_data.py:180`](../common/real_data.py#L180)) | 5 of 6 attack types | the 6th | does it transfer to an **unseen attack type**? |
+| **Round-holdout** ([`real_data.py:170`](../common/real_data.py#L170)) | mobile r1+r2, static r1 | mobile **r3** | does it transfer to a fresh mobility realisation? |
+| **LOSO** ([`real_data.py:179`](../common/real_data.py#L179)) | 5 of 6 attack types | the 6th | does it transfer to an **unseen attack type**? |
 
 Each split is a complete, independent re-run of pool building and NSGA-II. The primary
 split shuffles rows *within* each run, so autocorrelated neighbouring events can fall on
 both sides and inflate the score. The other two splits exist to measure how much.
 
-### 3.7 CARS results
+### 3.7 CARS results (legacy — old settings)
+
+> ⚠️ **Legacy numbers.** Produced before 2026-10-22 with R1–R18 injected into the pool and
+> seeded into the initial population, a 12–29 rule budget, High 60–90 and float scoring
+> (`outputs/legacy_2026-09/cars/`). They do not describe the current method. Re-run
+> `./run_cars.sh` (ideally `SEEDS="1 2 3 4 5"`) and replace this section with its `SUMMARY.md`.
 
 **Primary and round-holdout**, at $\tau=65$:
 
@@ -289,7 +305,7 @@ both sides and inflate the score. The other two splits exist to measure how much
 | S6 forge 2-hop | 12 | **0.6513** | 0.5988 | 0.0066 | 0.4967 | 0.9460 |
 | **mean ± std** | | **0.836 ± 0.131** | 0.806 ± 0.151 | | | |
 
-**How to read these results:**
+**How to read these (legacy) results:**
 
 - **CARS beats the hand-crafted base on every split in aggregate.** It improves F1 (+0.065 knee, +0.078 best-F1 on primary) *and* cuts FPR by roughly 2–8×.
 - **The FPR drop is the biggest operational gain.** For example, the knee base has 0.0061 FPR vs 0.0461.
@@ -334,28 +350,34 @@ same L/M/H sets before entering TOP.
 
 ### 4.2 Per-unit candidate pools ([`hfs_pipeline.py`](../methods/thfis/hfs_pipeline.py))
 
-`build_unit_pool` ([`hfs_pipeline.py:87`](../methods/thfis/hfs_pipeline.py#L87)) builds one pool per unit:
+`build_unit_pool` ([`hfs_pipeline.py:88`](../methods/thfis/hfs_pipeline.py#L88)) builds one pool per unit:
 
 - **Full enumeration.** Every unit has at most 3 inputs, so every antecedent is enumerated: 63 for RA and TOP ($9+27+27$), 15 for SI and CX ($6+9$). There is no Wang–Mendel step; with a grid this small, enumeration already covers every cell.
 - **Consequents.** Same Ishibuchi certainty grade as CARS.
 - **Pruning.** A support floor of 0.01 (vs 0.005 in CARS) and the same 0.15 confidence margin.
-- **Expert merge.** The hand-crafted RA/SI/CX/TOP rules are merged in as "expert", as in CARS.
-- **TOP pool reference signal.** The TOP pool has a special problem: its inputs (RA, SI, CX) depend on which layer-1 rules are selected. So TOP consequents are assigned against a *reference* signal, computed by the full hand-crafted layer 1 (`build_all_pools`, [`hfs_pipeline.py:136`](../methods/thfis/hfs_pipeline.py#L136)).
+- **No expert injection.** As in CARS, no hand-crafted RA/SI/CX/TOP rule is added to any pool; `expert_mask` only flags generated rules that share a hand-crafted antecedent (overlap reporting).
+- **TOP pool reference signal.** The TOP pool has a special problem: its inputs (RA, SI, CX) depend on which layer-1 rules are selected. So TOP consequents are assigned against a *reference* signal: the outputs of the generated layer-1 pools with all their rules on (`build_all_pools`, [`hfs_pipeline.py:120`](../methods/thfis/hfs_pipeline.py#L120)). No hand-crafted rule is involved. (Until 2026-10-22 the reference was the hand-crafted layer 1.)
 
-Final pool on the real corpus: **78 candidates, 25 of them hand-crafted**.
+Pool sizes per unit are printed in each run's `select.log` (legacy run: 78 candidates, of which 25 were injected hand-crafted rules).
 
-### 4.3 Joint NSGA-II ([`hfs_pipeline.py:206`](../methods/thfis/hfs_pipeline.py#L206))
+### 4.3 Joint NSGA-II ([`hfs_pipeline.py:193`](../methods/thfis/hfs_pipeline.py#L193))
 
 - **Chromosome.** The concatenation `[RA | SI | CX | TOP]` of the four unit masks.
 - **Fitness.** Every evaluation runs the **real two-layer inference**. RA, SI and CX are recomputed from whichever layer-1 rules that individual switched on, re-fuzzified, and then fed through that individual's TOP rules.
-- **Objectives, constraints and operators.** Identical to CARS: $(1-F_1,\ \mathrm{FPR},\ |S|/29)$ with $12\le|S|\le29$, where the count covers the whole hierarchy.
-- **Seeding.** Same scheme, with the 25 hand-crafted rules as individual 0 and a 5 % random density.
+- **Objectives, constraints and operators.** Identical to CARS: $(1-F_1,\ \mathrm{FPR},\ |S|/35)$ with $12\le|S|\le35$, where the count covers the whole hierarchy.
+- **Initial population.** Random, 5 % density; no hand-crafted rules are seeded.
+- **Arithmetic.** With `ARITH=int` each unit uses the mote's integer arithmetic, including the truncation of RA, SI and CX to integers before they enter TOP.
+- **Baseline.** The hand-crafted 25-rule hierarchy is scored on the same test set for comparison only.
 
 **Export.** `export_c_hfs` emits four chained Sugeno blocks. The deployable firmware is
 [`methods/thfis/c/fuzzrid-fuzzy-hfs.c`](../methods/thfis/c/fuzzrid-fuzzy-hfs.c). It is enabled by `-DWITH_THFIS=1`
 ([`reports/thfis-implement.md`](thfis-implement.md)).
 
-### 4.4 T-HFIS results
+### 4.4 T-HFIS results (legacy — old settings)
+
+> ⚠️ **Legacy numbers**, same caveat as §3.7: hand-crafted rules injected and seeded, TOP
+> pool fitted against the hand-crafted layer 1, 12–29 rules, High 60–90, float scoring
+> (`outputs/legacy_2026-09/thfis/`). Re-run `./run_thfis.sh` and replace this section.
 
 | Split | Hand-crafted F1 / FPR | Knee F1 / FPR (rules) | Best-F1 F1 / FPR (rules) |
 |---|---|---|---|
@@ -374,16 +396,19 @@ S4 0.926/0.462 · S5 0.978/0.512 · S6 0.669/0.612.
 
 ## 5. CARS vs T-HFIS and why CARS was chosen
 
+> ⚠️ The numbers in this table and in reasons 1–2 are the legacy results of §3.7 and §4.4.
+> The design rows (inference, firmware cost, consequent fitting, interpretability) still hold.
+
 | | CARS (flat) | T-HFIS (hierarchical) |
 |---|---|---|
 | Inference | one 7-input Sugeno unit | four chained Sugeno units |
-| Candidate pool | 701 (enum ≤4 terms + Wang–Mendel + 18 expert) | 78 (full per-unit enumeration + 25 hand-crafted) |
+| Candidate pool | enum ≤4 terms + Wang–Mendel (legacy: 701 incl. 18 injected expert) | full per-unit enumeration (legacy: 78 incl. 25 injected hand-crafted) |
 | Primary, best-F1 | 0.9278 / FPR 0.0218 (23 rules) | 0.9280 / FPR 0.0201 (23 rules) |
 | Primary, knee | **0.9153** / FPR 0.0061 (15) | 0.8718 / FPR 0.0049 (15) |
 | Round-holdout, knee | **0.8317** (15) | 0.7848 (14) |
 | LOSO mean F1 (knee) | **0.836 ± 0.131** | 0.787 ± 0.158 |
 | Firmware cost | 1 integer divide, 1 rule loop | 4 divides, 4 loops, re-fuzzification of 3 intermediates |
-| Consequent fitting | exact: each rule's certainty grade uses the real inputs | approximate for TOP: fitted against a reference layer 1 that differs from the selected one |
+| Consequent fitting | exact: each rule's certainty grade uses the real inputs | approximate for TOP: fitted against a reference layer 1 (all generated layer-1 rules on) that differs from the selected one |
 | Interpretability | each rule reads directly in terms of $v_1..v_7$ | TOP rules read in terms of abstract RA/SI/CX scores |
 | Overlap with hand-crafted base | ~chance (1/18) | substantial (9/25) |
 
@@ -407,13 +432,13 @@ data", T-HFIS would be the natural choice.
 
 ## 6. Limitations to state with the CARS results
 
-1. **Unseen attack types.** LOSO F1 falls to 0.65–0.69 on S2 and S6, and R1–R18 beats CARS on S1/S2. CARS partly specialises to the attack types it was trained on. Report LOSO mean ± std alongside the primary number, not the primary number alone.
+1. **Unseen attack types.** In the legacy runs, LOSO F1 fell to 0.65–0.69 on S2 and S6 (and the hand-crafted R1–R18 did better on S1/S2). CARS partly specialises to the attack types it was trained on. Report LOSO mean ± std alongside the primary number, not the primary number alone.
 2. **Best-F1 pick uses the test split** (§3.4). The knee numbers are the clean held-out numbers.
 3. **Primary split autocorrelation.** Rows are shuffled within runs. The round-holdout and LOSO splits bound the effect.
-4. **Single seed (42).** The split, initial population and GA randomness are all fixed together. Repeating with several seeds would show how stable the front is.
-5. **Fixed membership functions.** Rules were selected under High = [60, 90]; a base selected under one MF setting does not transfer to another. Do not tune MFs and rules on the same split.
+4. **Seeds.** The split, initial population and GA randomness are all fixed by one seed. Report results over several seeds (`SEEDS="1 2 3 4 5" ./run_cars.sh` gives mean ± std in `SUMMARY.md`).
+5. **Fixed membership functions.** Rules are selected under High = [50, 80], the firmware's setting; a base selected under one MF setting does not transfer to another. Do not tune MFs and rules on the same split.
 6. **No $z=50$ for generated rules.** This is a side effect of the 0.15 confidence margin (§3.2).
-7. **Expert overlap is at chance level.** CARS does not "validate" R1–R18. It replaces the base.
+7. **No built-in comparison with a hand-crafted base.** The code scores only data-selected bases. A comparison with R1–R18 (or $K_0$) has to be made separately, with the same test splits and arithmetic.
 8. **Simulation labels.** Ground truth is attacker mote IDs in Cooja, so the results inherit the simulation's topology and mobility scope.
 
 ---
@@ -421,19 +446,16 @@ data", T-HFIS would be the natural choice.
 ## 7. Reproducing
 
 ```bash
-# CARS (flat): primary + round-holdout, then LOSO, then best-F1 re-pick
-python3 methods/cars/run_real_selection.py
-python3 methods/cars/run_loso.py
-python3 methods/cars/finalize_selection.py --split primary       --out-dir outputs/cars/primary
-python3 methods/cars/finalize_selection.py --split round_holdout --out-dir outputs/cars/round_holdout
-
-# T-HFIS (hierarchical) equivalents
-python3 methods/thfis/run_hfs_real_selection.py
-python3 methods/thfis/run_hfs_loso.py
+./run_cars.sh                    # CARS: select (primary + round-holdout) → LOSO → best-F1 → SUMMARY.md
+./run_thfis.sh                   # T-HFIS: same steps
+SEEDS="1 2 3 4 5" ./run_cars.sh  # multi-seed, mean ± std in SUMMARY.md
+QUICK=1 ./run_cars.sh            # smoke test
 ```
 
-The outputs are written to `outputs/cars/{primary,round_holdout,loso/S1..S6}/` and
-`outputs/thfis/…`, with the same file layout.
+Both read every setting from `config.sh` (rule budget, MFs, threshold, arithmetic, split,
+seeds, NSGA-II sizes), so the two methods always run with the same values. Each run writes
+`outputs/<method>/run_<date>_<time>/` with `config.txt` (all settings + git commit),
+`SUMMARY.md` and `seed_<s>/{primary,round_holdout,loso/S1..S6}/`.
 
 ## References
 

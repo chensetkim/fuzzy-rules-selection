@@ -32,13 +32,13 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
 METHOD=thfis
-RESULT_RE="knee base|hand-crafted T-HFIS .* on this test|^\[finalize-hfs\]"
+RESULT_RE="knee base|^\[finalize-hfs\]"
 # shellcheck disable=SC1091
 source scripts/run_common.sh
 
 COMMON=(--csv-root "$CSV_ROOT" --ac-thr "$AC_THR"
         --min-support "$THFIS_MIN_SUPPORT" --conf-margin "$CONF_MARGIN"
-        --mf-high "$MF_HIGH" --min-rules "$MIN_RULES" --max-rules "$MAX_RULES")
+        --mf-high "$MF_HIGH" --arith "$ARITH" --min-rules "$MIN_RULES" --max-rules "$MAX_RULES")
 
 # ---------------------------------------------------------------------------
 # 2-4. per seed: select, loso, finalize

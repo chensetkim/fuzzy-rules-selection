@@ -16,12 +16,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "common"))
 
-from fuzzy import MFConfig
+from fuzzy import set_arithmetic, MFConfig
 from optimize import knee_solution, f1_fpr
-from hierarchy import THFIS
-from hfs_pipeline import (build_all_pools, pool_dims, joint_expert_mask,
+from hfs_pipeline import (build_all_pools, pool_dims,
                           run_nsga2_hfs, hfs_pareto_table, rules_listing_hfs,
-                          export_c_hfs, hfs_infer, overlap_stats)
+                          export_c_hfs, hfs_infer)
 from real_data import (load_real_events, features_labels, stratified_scenario_split,
                        round_holdout_split, stratified_subsample)
 
@@ -37,16 +36,8 @@ def run_one(tag, ev_train, ev_test, out_dir, mf, args, note=""):
     ra_pool, si_pool, cx_pool, top_pool = build_all_pools(
         X_trs, y_trs, mf, min_support=args.min_support, conf_margin=args.conf_margin)
     dims = pool_dims(ra_pool, si_pool, cx_pool, top_pool)
-    expert_mask = joint_expert_mask(ra_pool, si_pool, cx_pool, top_pool)
     print(f"[hfs:{tag}] pool sizes: RA={dims[0]} SI={dims[1]} CX={dims[2]} TOP={dims[3]} "
           f"(total {sum(dims)} candidate bits)")
-
-    # Hand-crafted 25-rule hierarchy on this test split, for reference.
-    hfs_ref = THFIS(mf)
-    ac_ref = hfs_ref.infer(X_te)
-    f1_r, fpr_r, cm_r = f1_fpr(ac_ref, y_te, args.ac_thr)
-    print(f"[hfs:{tag}] hand-crafted T-HFIS (25 rules) on this test: F1={f1_r:.4f} "
-          f"FPR={fpr_r:.4f} recall={cm_r['recall']:.4f} precision={cm_r['precision']:.4f}")
 
     masks, F, dims = run_nsga2_hfs(ra_pool, si_pool, cx_pool, top_pool, y_trs, mf,
                                    ac_thr=args.ac_thr, max_rules=args.max_rules,
@@ -60,24 +51,19 @@ def run_one(tag, ev_train, ev_test, out_dir, mf, args, note=""):
 
     k = knee_solution(F)
     best = masks[k]
-    ov = overlap_stats(best, expert_mask)
     ac_best, _ = hfs_infer(X_te, ra_pool, si_pool, cx_pool, top_pool, best, mf, dims)
     f1_b, fpr_b, cm_b = f1_fpr(ac_best, y_te, args.ac_thr)
-    n_expert_total = int(expert_mask.sum())
     with open(os.path.join(out_dir, "selected_rules.txt"), "w") as f:
         f.write(f"{note}\nKnee-point hierarchy ({int(best.sum())} rules total)\n"
                 f"test F1={f1_b:.4f} FPR={fpr_b:.4f} recall={cm_b['recall']:.4f} "
-                f"precision={cm_b['precision']:.4f}\n"
-                f"hand-crafted-rule overlap: {ov['n_expert_in_base']}/{n_expert_total} kept, "
-                f"Jaccard={ov['jaccard']:.3f}\n\n"
+                f"precision={cm_b['precision']:.4f}\n\n"
                 + rules_listing_hfs(best, dims, ra_pool, si_pool, cx_pool, top_pool) + "\n")
     export_c_hfs(best, dims, ra_pool, si_pool, cx_pool, top_pool,
-                os.path.join(out_dir, "selected_rules.c"))
+                os.path.join(out_dir, "selected_rules.c"), mf)
 
     print(f"[hfs:{tag}] knee base: {int(best.sum())} rules | test F1={f1_b:.4f} "
-          f"FPR={fpr_b:.4f} | hand-crafted kept={ov['n_expert_in_base']}/{n_expert_total}")
-    return dict(tag=tag, f1=f1_b, fpr=fpr_b, cm=cm_b, n_rules=int(best.sum()),
-               ref_f1=f1_r, ref_fpr=fpr_r)
+          f"FPR={fpr_b:.4f}")
+    return dict(tag=tag, f1=f1_b, fpr=fpr_b, cm=cm_b, n_rules=int(best.sum()))
 
 
 def main():
@@ -95,7 +81,10 @@ def main():
     ap.add_argument("--test-frac", type=float, default=0.3)
     ap.add_argument("--train-sample", type=int, default=40000)
     ap.add_argument("--mf-high", type=str, default="50,80")
+    ap.add_argument("--arith", choices=["int", "float"], default="int",
+                    help="int = firmware integer arithmetic (default), float = continuous model")
     args = ap.parse_args()
+    set_arithmetic(args.arith)
 
     hc, hd = (int(x) for x in args.mf_high.split(","))
     mf = MFConfig(high=(hc, hd))
@@ -117,9 +106,9 @@ def main():
 
     print("\n=== SUMMARY (hierarchical T-HFIS) ===")
     print(f"primary:       {primary['n_rules']:2d} rules | test F1={primary['f1']:.4f} "
-          f"FPR={primary['fpr']:.4f}  (hand-crafted F1={primary['ref_f1']:.4f})")
+          f"FPR={primary['fpr']:.4f}")
     print(f"round-holdout: {holdout['n_rules']:2d} rules | unseen-round F1={holdout['f1']:.4f} "
-          f"FPR={holdout['fpr']:.4f}  (hand-crafted F1={holdout['ref_f1']:.4f})")
+          f"FPR={holdout['fpr']:.4f}")
     gap = primary['f1'] - holdout['f1']
     print(f"F1 gap (primary test vs unseen-round holdout): {gap:+.4f} "
           f"{'(small -> low overfit risk)' if abs(gap) < 0.05 else '(check for overfitting)'}")

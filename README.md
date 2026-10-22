@@ -8,17 +8,18 @@ Two methods are implemented: **CARS** (flat NSGA-II selection, the adopted metho
 
 ```
 common/           code shared by both methods
-  fuzzy.py          membership functions + Sugeno inference
+  fuzzy.py          membership functions + Sugeno inference (ARITH=int: the mote's
+                    integer arithmetic, bit-exact with fuzzrid-fuzzy.c; ARITH=float: continuous)
   candidates.py     candidate rule-pool generation
   optimize.py       NSGA-II selection, knee point, F1/FPR
-  report.py         Pareto table, rule listing, C export, expert overlap
+  report.py         Pareto table, rule listing, C export
   real_data.py      loader, labelling and splits for data/processed/
 
 methods/
   cars/             flat selection: run_real_selection, run_loso, finalize_selection
   thfis/            hierarchical: hierarchy, hfs_pipeline, run_hfs_real_selection,
                     run_hfs_loso, finalize_hfs_selection
-    c/              Contiki C implementation (fuzzrid-fuzzy-hfs.c/.h)
+    c/              fuzzrid-fuzzy-hfs.h (the .c is generated per run as selected_rules.c)
 
 scripts/          parse_serial.py/.sh (log -> CSV), install_lib.sh,
                   run_common.sh (shared runner plumbing), summarize_run.py (SUMMARY.md)

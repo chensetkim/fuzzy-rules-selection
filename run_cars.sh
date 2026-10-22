@@ -31,13 +31,13 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
 METHOD=cars
-RESULT_RE="knee base|expert R1-R18 on this test|^\[finalize\]"
+RESULT_RE="knee base|^\[finalize\]"
 # shellcheck disable=SC1091
 source scripts/run_common.sh
 
 COMMON=(--csv-root "$CSV_ROOT" --ac-thr "$AC_THR" --max-terms "$CARS_MAX_TERMS"
         --min-support "$CARS_MIN_SUPPORT" --conf-margin "$CONF_MARGIN"
-        --mf-high "$MF_HIGH" --min-rules "$MIN_RULES" --max-rules "$MAX_RULES")
+        --mf-high "$MF_HIGH" --arith "$ARITH" --min-rules "$MIN_RULES" --max-rules "$MAX_RULES")
 
 # ---------------------------------------------------------------------------
 # 2-4. per seed: select, loso, finalize

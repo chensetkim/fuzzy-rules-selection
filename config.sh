@@ -13,6 +13,7 @@ MIN_RULES="${MIN_RULES:-12}"                # 12
 MAX_RULES="${MAX_RULES:-35}"                # 35
 MF_HIGH="${MF_HIGH:-50,80}"                 # High MF: 0 at 50 -> 100 at 80
 AC_THR="${AC_THR:-65}"                      # FUZZRID_TAU_Q_PCT
+ARITH="${ARITH:-int}"                       # int = mote's integer arithmetic, float = continuous model
 TEST_FRAC="${TEST_FRAC:-0.3}"               # 30% test data
 CONF_MARGIN="${CONF_MARGIN:-0.15}"          # confidence margin for rule selection
 POP="${POP:-$(q 20 150)}"                   # select + finalize

@@ -33,10 +33,10 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "common"))
 
-from fuzzy import MFConfig, firing_matrix, expert_arrays, sugeno_ac
+from fuzzy import set_arithmetic, MFConfig, firing_matrix, sugeno_ac
 from candidates import build_pool
 from optimize import run_nsga2, knee_solution, f1_fpr
-from report import pareto_table, rules_listing, export_c, overlap_stats
+from report import pareto_table, rules_listing, export_c
 from real_data import (load_real_events, features_labels, stratified_scenario_split,
                        round_holdout_split, stratified_subsample)
 
@@ -53,15 +53,8 @@ def run_one(tag, ev_train, ev_test, out_dir, mf, args, note=""):
     pool = build_pool(X_trs, y_trs, mf, max_terms=args.max_terms,
                       min_support=args.min_support, conf_margin=args.conf_margin)
 
-    e_ants, e_z, _ = expert_arrays()
     M_te = mf.memberships(X_te)
     W_te = firing_matrix(M_te, pool["antecedents"])
-    exp_mask = pool["expert_mask"]
-    # Baseline = the real R1-R18 base, independent of what the pool contains.
-    ac_exp = sugeno_ac(firing_matrix(M_te, e_ants), e_z)
-    f1_e, fpr_e, cm_e = f1_fpr(ac_exp, y_te, args.ac_thr)
-    print(f"[{tag}] expert R1-R18 on this test: F1={f1_e:.4f} FPR={fpr_e:.4f} "
-          f"recall={cm_e['recall']:.4f} precision={cm_e['precision']:.4f}")
 
     masks, F = run_nsga2(pool, y_trs, ac_thr=args.ac_thr, max_rules=args.max_rules,
                          min_rules=args.min_rules, pop_size=args.pop,
@@ -73,29 +66,19 @@ def run_one(tag, ev_train, ev_test, out_dir, mf, args, note=""):
 
     k = knee_solution(F)
     best = masks[k]
-    ov = overlap_stats(best, exp_mask)
     ac_best = sugeno_ac(W_te, pool["z"], subset=best)
     f1_b, fpr_b, cm_b = f1_fpr(ac_best, y_te, args.ac_thr)
     with open(os.path.join(out_dir, "selected_rules.txt"), "w") as f:
         f.write(f"{note}\nKnee-point rule base ({int(best.sum())} rules)\n"
                 f"test F1={f1_b:.4f} FPR={fpr_b:.4f} "
-                f"recall={cm_b['recall']:.4f} precision={cm_b['precision']:.4f}\n"
-                f"expert overlap: {ov['n_expert_in_base']}/18 expert rules kept, "
-                f"Jaccard={ov['jaccard']:.3f}\n\n"
+                f"recall={cm_b['recall']:.4f} precision={cm_b['precision']:.4f}\n\n"
                 + rules_listing(best, pool) + "\n")
     export_c(best, pool, os.path.join(out_dir, "selected_rules.c"))
 
-    with open(os.path.join(out_dir, "overlap_report.txt"), "w") as f:
-        f.write("base_id,n_rules,expert_in_base,jaccard,expert_coverage\n")
-        for i, m in enumerate(masks):
-            o = overlap_stats(m, exp_mask)
-            f.write(f"{i},{o['n_selected']},{o['n_expert_in_base']},"
-                    f"{o['jaccard']:.3f},{o['expert_coverage']:.3f}\n")
-
     print(f"[{tag}] knee base: {int(best.sum())} rules | test F1={f1_b:.4f} "
-          f"FPR={fpr_b:.4f} | expert kept={ov['n_expert_in_base']}/18")
+          f"FPR={fpr_b:.4f}")
     return dict(tag=tag, pool=pool, best=best, f1=f1_b, fpr=fpr_b, cm=cm_b,
-               n_rules=int(best.sum()), expert_f1=f1_e, expert_fpr=fpr_e)
+               n_rules=int(best.sum()))
 
 
 def main():
@@ -114,7 +97,10 @@ def main():
     ap.add_argument("--test-frac", type=float, default=0.3)
     ap.add_argument("--train-sample", type=int, default=40000)
     ap.add_argument("--mf-high", type=str, default="50,80")
+    ap.add_argument("--arith", choices=["int", "float"], default="int",
+                    help="int = firmware integer arithmetic (default), float = continuous model")
     args = ap.parse_args()
+    set_arithmetic(args.arith)
 
     hc, hd = (int(x) for x in args.mf_high.split(","))
     mf = MFConfig(high=(hc, hd))
@@ -139,9 +125,9 @@ def main():
 
     print("\n=== SUMMARY (flat) ===")
     print(f"primary:       {primary['n_rules']:2d} rules | test F1={primary['f1']:.4f} "
-          f"FPR={primary['fpr']:.4f}  (expert F1={primary['expert_f1']:.4f})")
+          f"FPR={primary['fpr']:.4f}")
     print(f"round-holdout: {holdout['n_rules']:2d} rules | unseen-round F1={holdout['f1']:.4f} "
-          f"FPR={holdout['fpr']:.4f}  (expert F1={holdout['expert_f1']:.4f})")
+          f"FPR={holdout['fpr']:.4f}")
     gap = primary['f1'] - holdout['f1']
     print(f"F1 gap (primary test vs unseen-round holdout): {gap:+.4f} "
           f"{'(small -> low overfit risk)' if abs(gap) < 0.05 else '(check for overfitting)'}")

@@ -11,7 +11,7 @@
 # shellcheck disable=SC1091
 source "$ROOT/config.sh"
 
-CONFIG_VARS=(QUICK SEEDS MIN_RULES MAX_RULES MF_HIGH AC_THR TEST_FRAC CONF_MARGIN
+CONFIG_VARS=(QUICK SEEDS MIN_RULES MAX_RULES MF_HIGH AC_THR ARITH TEST_FRAC CONF_MARGIN
              POP GENS TRAIN_SAMPLE LOSO_POP LOSO_GENS LOSO_TRAIN CSV_ROOT
              CARS_MAX_TERMS CARS_MIN_SUPPORT THFIS_MIN_SUPPORT)
 
@@ -71,11 +71,11 @@ else
     {
         echo "# $(basename "$0") settings ($(date '+%Y-%m-%d %H:%M'), commit $COMMIT)"
         for v in "${CONFIG_VARS[@]}"; do printf '%s="%s"\n' "$v" "${!v}"; done
-        echo "# fixed: ATK_START_S=300 (common/real_data.py), no expert rules injected"
+        echo "# fixed: ATK_START_S=300 (common/real_data.py), no hand-crafted rules used"
     } > "$OUT/config.txt"
 fi
 echo "run folder: $OUT"
-echo "seeds: $SEEDS | rules $MIN_RULES-$MAX_RULES | MF_HIGH=$MF_HIGH | AC_THR=$AC_THR | pop/gens $POP/$GENS (loso $LOSO_POP/$LOSO_GENS)"
+echo "seeds: $SEEDS | rules $MIN_RULES-$MAX_RULES | MF_HIGH=$MF_HIGH | AC_THR=$AC_THR | ARITH=$ARITH | pop/gens $POP/$GENS (loso $LOSO_POP/$LOSO_GENS)"
 
 # ---------------------------------------------------------------------------
 # 0. check

@@ -1,14 +1,13 @@
 """
-report.py -- Pareto front reporting, expert-base overlap, and C export
-======================================================================
+report.py -- Pareto front reporting and C export
+================================================
 Outputs:
   pareto_front.csv     one row per non-dominated rule base (train + test
-                       metrics, rule count, expert overlap)
+                       metrics, rule count)
   selected_rules.txt   human-readable listing of the knee-point base
   selected_rules.c     drop-in body for fuzzrid_fuzzy_infer_ac() on the
                        integer 0..100 scale (min t-norm, Sugeno weighted
                        average) so the selected base deploys unchanged
-  overlap_report.txt   Jaccard/containment of every Pareto base vs R1-R18
 """
 
 from __future__ import annotations
@@ -27,30 +26,16 @@ def base_metrics(mask, W, z, y, ac_thr):
     return f1, fpr, cm
 
 
-def overlap_stats(mask: np.ndarray, expert_mask: np.ndarray):
-    sel = set(np.nonzero(mask)[0])
-    exp = set(np.nonzero(expert_mask)[0])
-    inter = len(sel & exp)
-    union = len(sel | exp)
-    return dict(n_selected=len(sel), n_expert_in_base=inter,
-                jaccard=inter / union if union else 0.0,
-                expert_coverage=inter / len(exp) if exp else 0.0)
-
-
 def pareto_table(masks, F, pool, y_tr, W_te, y_te, ac_thr, names):
     rows = []
     for i, mask in enumerate(masks):
         f1_tr, fpr_tr, _ = base_metrics(mask, pool["W"], pool["z"], y_tr, ac_thr)
         f1_te, fpr_te, cm = base_metrics(mask, W_te, pool["z"], y_te, ac_thr)
-        ov = overlap_stats(mask, pool["expert_mask"])
         rows.append(dict(base_id=i, n_rules=int(mask.sum()),
                          f1_train=round(f1_tr, 4), fpr_train=round(fpr_tr, 4),
                          f1_test=round(f1_te, 4), fpr_test=round(fpr_te, 4),
                          recall_test=round(cm["recall"], 4),
                          precision_test=round(cm["precision"], 4),
-                         expert_rules_included=ov["n_expert_in_base"],
-                         jaccard_vs_expert=round(ov["jaccard"], 3),
-                         expert_coverage=round(ov["expert_coverage"], 3),
                          rules="; ".join(names[j] for j in np.nonzero(mask)[0])))
     return pd.DataFrame(rows).sort_values(["f1_test", "n_rules"],
                                           ascending=[False, True])
@@ -59,9 +44,7 @@ def pareto_table(masks, F, pool, y_tr, W_te, y_te, ac_thr, names):
 def rules_listing(mask, pool):
     lines = []
     for j in np.nonzero(mask)[0]:
-        # [gen=expert]: generated rule with the same antecedent as an R1-R18 rule
-        tag = "[gen=expert]" if pool["expert_mask"][j] else "[generated]"
-        lines.append(f"{pool['names'][j]:>14} {tag:11} "
+        lines.append(f"{pool['names'][j]:>14} "
                      f"{rule_str(pool['antecedents'][j], pool['z'][j])}   "
                      f"(support={pool['support'][j]:.3f}, conf={pool['conf'][j]:.2f})")
     return "\n".join(lines)

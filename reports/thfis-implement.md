@@ -1,14 +1,18 @@
+# Deploying a selected T-HFIS hierarchy in the firmware
 
-Copy both files ```fuzzrid-fuzz-hfs.c``` and ```fuzzrid-fuzzy-hfs.h``` to folder ```apps/2h-fuzzrid```
+`./run_thfis.sh` writes, for every split, a **complete** `fuzzrid-fuzzy-hfs.c` for the selected
+hierarchy: `seed_<s>/primary/selected_rules.c` (knee) and `selected_rules_best_f1.c` (best-F1).
+It contains the membership functions with the run's breakpoints, the integer Sugeno average and
+the two entry points declared in `methods/thfis/c/fuzzrid-fuzzy-hfs.h`, and is bit-exact with the
+Python model under `ARITH=int`. Do not paste rule blocks into another file by hand.
 
-1. In ```fuzzrid-fuzzy.c``` — add the include at the top, then call 
-the function from inside the existing entry point:
+1. Copy the chosen file to `apps/2h-fuzzrid/fuzzrid-fuzzy-hfs.c`, and
+   `methods/thfis/c/fuzzrid-fuzzy-hfs.h` to `apps/2h-fuzzrid/fuzzrid-fuzzy-hfs.h`.
+
+2. In `fuzzrid-fuzzy.c`, include the header and call the function from the existing entry point:
 
 ```c
 #include "apps/2h-fuzzrid/fuzzrid-fuzzy-hfs.h"
-```
-
-```c
 
 uint8_t
 fuzzrid_fuzzy_infer_ac(uint8_t v1, uint8_t v2, uint8_t v3,
@@ -21,24 +25,22 @@ fuzzrid_fuzzy_infer_ac(uint8_t v1, uint8_t v2, uint8_t v3,
   PRINTF("[HFS] ra=%u si=%u cx=%u ac=%u\n", ra, si, cx, ac);
   return ac;
 #else
-  /* existing R1..R18 body, unchanged */
-  uint8_t w[19]; uint8_t z[19];
-  /* other code */
+  /* existing flat body, unchanged */
 #endif
 }
-
 ```
 
-2. In ```apps/2h-fuzzrid/Makefile.2h-fuzzrid``` — the new file must be compiled:
+3. In `apps/2h-fuzzrid/Makefile.2h-fuzzrid`, compile the new file:
 
 ```
 2h-fuzzrid_src += fuzzrid-fuzzy-hfs.c
 ```
 
-3. In ```examples/2h-fuzzrid/Makefile``` — the switch:
+4. In `examples/2h-fuzzrid/Makefile`, enable it:
 
 ```
 CFLAGS += -DWITH_THFIS=1
 ```
 
-then run cooja simulation.
+Then rebuild and run the Cooja simulation. The membership functions in the generated file follow
+`MF_HIGH` of the run (`config.txt`); `fuzzrid-fuzzy.c`'s own `mu_*` are not used by T-HFIS.

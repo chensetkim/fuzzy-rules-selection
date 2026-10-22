@@ -9,8 +9,8 @@ across train/test) and explicitly says: "before any of this goes in the
 manuscript, re-run under leave-one-scenario-out". This script does that:
 for each of S1..S6, train candidate generation + NSGA-II on the other
 five attack types (every env/round/atkcount), test on the sixth -- a
-whole attack type NEVER seen during selection. If expert-overlap and F1
-hold up close to the primary (random-split) numbers, that result is real;
+whole attack type NEVER seen during selection. If F1 holds up close to
+the primary (random-split) numbers, that result is real;
 if it collapses, the random-split number was leakage.
 
 Runs with reduced pop/gens vs the primary run (this is a validation
@@ -23,7 +23,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "common"))
 
-from fuzzy import MFConfig
+from fuzzy import set_arithmetic, MFConfig
 from real_data import load_real_events, scenario_holdout_split
 from run_real_selection import run_one
 
@@ -43,7 +43,10 @@ def main():
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--train-sample", type=int, default=30000)
     ap.add_argument("--mf-high", type=str, default="50,80")
+    ap.add_argument("--arith", choices=["int", "float"], default="int",
+                    help="int = firmware integer arithmetic (default), float = continuous model")
     args = ap.parse_args()
+    set_arithmetic(args.arith)
 
     hc, hd = (int(x) for x in args.mf_high.split(","))
     mf = MFConfig(high=(hc, hd))
@@ -61,7 +64,7 @@ def main():
     print("\n=== SUMMARY (flat, leave-one-scenario-out) ===")
     for r in results:
         print(f"{r['tag']:12} {r['n_rules']:2d} rules | F1={r['f1']:.4f} "
-              f"FPR={r['fpr']:.4f}  (expert F1={r['expert_f1']:.4f})")
+              f"FPR={r['fpr']:.4f}")
     import numpy as np
     f1s = np.array([r["f1"] for r in results])
     print(f"\nmean F1={f1s.mean():.4f}  std={f1s.std():.4f}  min={f1s.min():.4f}  max={f1s.max():.4f}")

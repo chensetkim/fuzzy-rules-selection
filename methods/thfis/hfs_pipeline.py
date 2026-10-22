@@ -1,13 +1,10 @@
 """
 hfs_pipeline.py -- Data-driven rule SELECTION for the T-HFIS hierarchy
 =======================================================================
-hierarchy.py ships one hand-designed 25-rule hierarchy (6 RA + 5 SI +
-5 CX + 9 TOP), justified by tracing each sub-rule back to R1-R18. This
-module runs the SAME candidate-generation + Ishibuchi-certainty-grade +
-NSGA-II methodology used by the flat methods/cars pipeline, but jointly over
-the four T-HFIS sub-FIS units, so the hierarchy's rule content is chosen
-by the same reproducible procedure as the flat base rather than only by
-hand.
+hierarchy.py defines only the layout (which inputs feed RA/SI/CX/TOP).
+This module chooses every rule from data, with the SAME candidate-generation
++ Ishibuchi-certainty-grade + NSGA-II methodology as the flat methods/cars
+pipeline, run jointly over the four T-HFIS sub-FIS units.
 
 Per-unit candidate pools
 -------------------------
@@ -23,10 +20,7 @@ Per-unit candidate pools
                             re-derived inside the optimisation loop.
 Consequents assigned the same way as candidates.py: certainty grade
 conf(r) = sum_{y=1} w_r / sum w_r, snapped to {0,25,50,75,100}, pruned by
-min support and |conf-0.5| margin. The hand-crafted RA/SI/CX/TOP rules
-from hierarchy.py are never added to the pools; expert_mask flags
-generated rules whose antecedent equals a hand-crafted one (overlap
-reporting only).
+min support and |conf-0.5| margin. No hand-crafted rules are used.
 
 Joint optimisation
 -------------------
@@ -49,7 +43,7 @@ from fuzzy import (DONT_CARE, TERM_NAMES, Z_NAMES, MFConfig,
                    firing_matrix, sugeno_ac)
 from candidates import assign_consequents
 from optimize import f1_fpr
-from hierarchy import THFIS, RA_RULES, SI_RULES, CX_RULES, TOP_RULES
+from hierarchy import RA_IN, SI_IN, CX_IN, UNIT_INPUT_NAMES
 
 from pymoo.core.problem import Problem
 from pymoo.algorithms.moo.nsga2 import NSGA2
@@ -59,16 +53,6 @@ from pymoo.operators.mutation.bitflip import BitflipMutation
 from pymoo.optimize import minimize
 from pymoo.termination import get_termination
 
-RA_IN = THFIS.RA_IN   # [0,2,3] -> v1,v3,v4
-SI_IN = THFIS.SI_IN   # [1,4]   -> v2,v5
-CX_IN = THFIS.CX_IN   # [5,6]   -> v6,v7
-
-UNIT_INPUT_NAMES = {
-    "RA": ["v1", "v3", "v4"],
-    "SI": ["v2", "v5"],
-    "CX": ["v6", "v7"],
-    "TOP": ["RA", "SI", "CX"],
-}
 
 # ---------------------------------------------------------------------------
 # Candidate pool construction (per unit)
@@ -86,12 +70,11 @@ def enumerate_local_antecedents(n_features: int, max_terms: int) -> np.ndarray:
 
 
 def build_unit_pool(X_local: np.ndarray, y: np.ndarray, mf: MFConfig,
-                    hand_rules: list, unit_tag: str,
+                    unit_tag: str,
                     max_terms: int | None = None,
                     min_support: float = 0.01, conf_margin: float = 0.15,
                     verbose: bool = True):
-    """hand_rules: list of (name, antecedent_tuple, z, note) as in
-    hierarchy.py's RA_RULES/SI_RULES/CX_RULES/TOP_RULES."""
+    """Fully enumerated, pruned candidate pool for one unit."""
     n_features = X_local.shape[1]
     if max_terms is None:
         max_terms = n_features
@@ -105,37 +88,29 @@ def build_unit_pool(X_local: np.ndarray, y: np.ndarray, mf: MFConfig,
     W = W[:, keep]
     names = [f"{unit_tag}G{i+1}" for i in range(len(ants))]
 
-    # Mark generated rules matching a hand-crafted antecedent (reporting only).
-    e_ants = np.array([r[1] for r in hand_rules], dtype=np.int8)
-    expert_mask = (np.array([any((ea == a).all() for ea in e_ants) for a in ants], dtype=bool)
-                   if len(ants) else np.zeros(0, dtype=bool))
-
     if verbose:
-        print(f"[pool:{unit_tag}] {len(ants)} candidates ({int(expert_mask.sum())} match a "
-              f"hand-crafted antecedent, {len(hand_rules)} hand-crafted rules)")
+        print(f"[pool:{unit_tag}] {len(ants)} candidates")
     return dict(antecedents=ants, z=z, conf=conf, support=support, names=names,
-               expert_mask=expert_mask, W=W, n_features=n_features, tag=unit_tag)
+               W=W, n_features=n_features, tag=unit_tag)
 
 
 def build_all_pools(X: np.ndarray, y: np.ndarray, mf: MFConfig,
                     min_support: float = 0.01, conf_margin: float = 0.15):
     """X: (n,7) raw v1..v7. Layer-1 pools built from raw features; the TOP
     pool is built from a REFERENCE ra/si/cx computed with every rule of
-    the data-driven layer-1 pools on (no hand-crafted rules involved).
-    The hand-crafted rule lists are passed only to flag matching
-    antecedents for overlap reporting."""
-    ra_pool = build_unit_pool(X[:, RA_IN], y, mf, RA_RULES, "A",
+    the data-driven layer-1 pools on."""
+    ra_pool = build_unit_pool(X[:, RA_IN], y, mf, "A",
                               min_support=min_support, conf_margin=conf_margin)
-    si_pool = build_unit_pool(X[:, SI_IN], y, mf, SI_RULES, "B",
+    si_pool = build_unit_pool(X[:, SI_IN], y, mf, "B",
                               min_support=min_support, conf_margin=conf_margin)
-    cx_pool = build_unit_pool(X[:, CX_IN], y, mf, CX_RULES, "C",
+    cx_pool = build_unit_pool(X[:, CX_IN], y, mf, "C",
                               min_support=min_support, conf_margin=conf_margin)
 
     ra_ref = sugeno_ac(ra_pool["W"], ra_pool["z"])
     si_ref = sugeno_ac(si_pool["W"], si_pool["z"])
     cx_ref = sugeno_ac(cx_pool["W"], cx_pool["z"])
     Xtop_ref = np.stack([ra_ref, si_ref, cx_ref], axis=1)
-    top_pool = build_unit_pool(Xtop_ref, y, mf, TOP_RULES, "T",
+    top_pool = build_unit_pool(Xtop_ref, y, mf, "T",
                                min_support=min_support, conf_margin=conf_margin)
     return ra_pool, si_pool, cx_pool, top_pool
 
@@ -152,11 +127,6 @@ def split_mask(mask, dims):
         parts.append(mask[i:i + d])
         i += d
     return parts
-
-
-def joint_expert_mask(ra_pool, si_pool, cx_pool, top_pool):
-    return np.concatenate([ra_pool["expert_mask"], si_pool["expert_mask"],
-                           cx_pool["expert_mask"], top_pool["expert_mask"]])
 
 
 def hfs_infer(X: np.ndarray, ra_pool, si_pool, cx_pool, top_pool, mask, mf,
@@ -257,30 +227,17 @@ def run_nsga2_hfs(ra_pool, si_pool, cx_pool, top_pool, y, mf,
 # Reporting
 # ---------------------------------------------------------------------------
 
-def overlap_stats(mask, expert_mask):
-    sel = set(np.nonzero(mask)[0])
-    exp = set(np.nonzero(expert_mask)[0])
-    inter = len(sel & exp)
-    union = len(sel | exp)
-    n_expert = len(exp)
-    return dict(n_selected=len(sel), n_expert_in_base=inter,
-               jaccard=inter / union if union else 0.0,
-               expert_coverage=inter / n_expert if n_expert else 0.0)
-
-
 def _mask_names(pool, unit_mask):
     return [pool["names"][j] for j in np.nonzero(unit_mask)[0]]
 
 
 def hfs_pareto_table(masks, F, dims, ra_pool, si_pool, cx_pool, top_pool, mf,
                      X_te, y_te, ac_thr):
-    expert_mask = joint_expert_mask(ra_pool, si_pool, cx_pool, top_pool)
     rows = []
     for i, mask in enumerate(masks):
         ra_m, si_m, cx_m, top_m = split_mask(mask, dims)
         ac_te, _ = hfs_infer(X_te, ra_pool, si_pool, cx_pool, top_pool, mask, mf, dims)
         f1_te, fpr_te, cm_te = f1_fpr(ac_te, y_te, ac_thr)
-        ov = overlap_stats(mask, expert_mask)
         rule_names = ("RA:" + ",".join(_mask_names(ra_pool, ra_m)) +
                      "|SI:" + ",".join(_mask_names(si_pool, si_m)) +
                      "|CX:" + ",".join(_mask_names(cx_pool, cx_m)) +
@@ -293,8 +250,6 @@ def hfs_pareto_table(masks, F, dims, ra_pool, si_pool, cx_pool, top_pool, mf,
                          f1_test=round(f1_te, 4), fpr_test=round(fpr_te, 4),
                          recall_test=round(cm_te["recall"], 4),
                          precision_test=round(cm_te["precision"], 4),
-                         expert_rules_included=ov["n_expert_in_base"],
-                         jaccard_vs_expert=round(ov["jaccard"], 3),
                          rules=rule_names))
     return pd.DataFrame(rows).sort_values(["f1_test", "n_rules"], ascending=[False, True])
 
@@ -308,9 +263,7 @@ def _unit_listing(pool, mask, unit_key):
     names = UNIT_INPUT_NAMES[unit_key]
     lines = []
     for j in np.nonzero(mask)[0]:
-        # [gen=expert]: generated rule with the same antecedent as a hand-crafted rule
-        tag = "[gen=expert]" if pool["expert_mask"][j] else "[generated]"
-        lines.append(f"  {pool['names'][j]:>8} {tag:11} "
+        lines.append(f"  {pool['names'][j]:>8} "
                      f"{rule_str_named(pool['antecedents'][j], pool['z'][j], names)}  "
                      f"(support={pool['support'][j]:.3f}, conf={pool['conf'][j]:.2f})")
     return "\n".join(lines)
@@ -333,37 +286,123 @@ def rules_listing_hfs(mask, dims, ra_pool, si_pool, cx_pool, top_pool):
 MU_FN = {1: "mu_L", 2: "mu_M", 3: "mu_H"}
 
 
-def _export_unit_c(pool, mask, out_name, feat_names, lines):
+def _export_unit_fn(pool, mask, fn, params, lines):
+    """One static C function computing a unit's Sugeno output from its inputs."""
     idx = np.nonzero(mask)[0]
     n = len(idx)
-    lines.append(f"/* {out_name}: {n} rules */")
-    lines.append(f"uint16_t w_{out_name.lower()}[{n + 1}]; uint8_t zc_{out_name.lower()}[{n + 1}];")
-    for r, j in enumerate(idx, start=1):
-        ant, z = pool["antecedents"][j], int(pool["z"][j])
-        terms = [(feat_names[i], t) for i, t in enumerate(ant) if t != DONT_CARE]
+    lines.append(f"static uint8_t {fn}({', '.join('uint8_t ' + p for p in params)})")
+    lines.append("{")
+    if n == 0:
+        lines.append("  " + " ".join(f"(void){p};" for p in params) + "  /* no rules selected */")
+        lines.append("  return 0;")
+        lines.append("}")
+        lines.append("")
+        return
+    used = set()
+    lines.append(f"  uint8_t w[{n}], z[{n}];")
+    for r, j in enumerate(idx):
+        ant, zz = pool["antecedents"][j], int(pool["z"][j])
+        terms = [(params[i], t) for i, t in enumerate(ant) if t != DONT_CARE]
+        used.update(f for f, _ in terms)
         expr = f"{MU_FN[terms[0][1]]}({terms[0][0]})"
         for feat, t in terms[1:]:
             expr = f"min2({expr}, {MU_FN[t]}({feat}))"
         cond = " AND ".join(f"{f} is {TERM_NAMES[t]}" for f, t in terms)
-        lines.append(f"/* {pool['names'][j]}: {cond} -> {z} */")
-        lines.append(f"w_{out_name.lower()}[{r}] = {expr};  zc_{out_name.lower()}[{r}] = {z};")
-    lines.append(f"uint32_t num_{out_name.lower()} = 0, den_{out_name.lower()} = 1;")
-    lines.append(f"for(r = 1; r <= {n}; r++) {{ num_{out_name.lower()} += "
-                f"(uint32_t)w_{out_name.lower()}[r] * zc_{out_name.lower()}[r]; "
-                f"den_{out_name.lower()} += w_{out_name.lower()}[r]; }}")
-    lines.append(f"uint8_t {out_name.lower()} = (uint8_t)(num_{out_name.lower()} / den_{out_name.lower()});")
+        lines.append(f"  /* {pool['names'][j]}: {cond} -> {zz} */")
+        lines.append(f"  w[{r}] = {expr};  z[{r}] = {zz};")
+    for p in params:
+        if p not in used:
+            lines.append(f"  (void){p};  /* input not used by the selected rules */")
+    lines.append(f"  return sugeno(w, z, {n});")
+    lines.append("}")
     lines.append("")
 
 
-def export_c_hfs(mask, dims, ra_pool, si_pool, cx_pool, top_pool, fname):
+def export_c_hfs(mask, dims, ra_pool, si_pool, cx_pool, top_pool, fname, mf: MFConfig):
+    """Write a complete, compilable fuzzrid-fuzzy-hfs.c for the selected hierarchy:
+    integer MFs with this run's breakpoints, the eps=1 Sugeno average, the four
+    unit functions, and the two entry points declared in fuzzrid-fuzzy-hfs.h.
+    Bit-exact with hfs_infer() under integer arithmetic (fuzzy.set_arithmetic("int"))."""
     ra_m, si_m, cx_m, top_m = split_mask(mask, dims)
-    lines = [f"/* Auto-generated by hfs_pipeline rule selection: "
-            f"{int(mask.sum())} rules total "
-            f"({int(ra_m.sum())}+{int(si_m.sum())}+{int(cx_m.sum())}+{int(top_m.sum())}) */", ""]
-    _export_unit_c(ra_pool, ra_m, "ra", ["v1", "v3", "v4"], lines)
-    _export_unit_c(si_pool, si_m, "si", ["v2", "v5"], lines)
-    _export_unit_c(cx_pool, cx_m, "cx", ["v6", "v7"], lines)
-    _export_unit_c(top_pool, top_m, "ac", ["ra", "si", "cx"], lines)
-    lines.append("return ac;  /* AC in 0..100 */")
+    (la, lb), (mp, mq, mr), (hc, hd) = mf.low, mf.med, mf.high
+    L = [
+        "/*",
+        " * fuzzrid-fuzzy-hfs.c -- T-HFIS hierarchical fuzzy engine.",
+        " * AUTO-GENERATED by methods/thfis/hfs_pipeline.py (export_c_hfs); do not edit by hand.",
+        f" * Selected hierarchy: {int(mask.sum())} rules "
+        f"(RA {int(ra_m.sum())} + SI {int(si_m.sum())} + CX {int(cx_m.sum())} + TOP {int(top_m.sum())}).",
+        " * Integer-only, same MF family and arithmetic as fuzzrid-fuzzy.c:",
+        " * uint8 memberships 0..100 (truncating division), min t-norm,",
+        " * AC = sum(w*z) / (1 + sum(w)). Copy over apps/2h-fuzzrid/fuzzrid-fuzzy-hfs.c.",
+        " */",
+        "",
+        "#include <stdint.h>",
+        '#include "fuzzrid-fuzzy-hfs.h"',
+        "",
+        f"/* Low: 100 on [0,{la}], linear to 0 at {lb}.  Medium: 0 at {mp}, 100 at {mq}, 0 at {mr}.",
+        f" * High: 0 at {hc}, linear to 100 at {hd}, 100 on [{hd},100]. */",
+        "static uint8_t mu_L(uint8_t v)",
+        "{",
+        f"  if(v <= {la}) return 100;",
+        f"  if(v >= {lb}) return 0;",
+        f"  return (uint8_t)((({lb} - v) * 100u) / {lb - la}u);",
+        "}",
+        "",
+        "static uint8_t mu_M(uint8_t v)",
+        "{",
+        f"  if(v <= {mp} || v >= {mr}) return 0;",
+        f"  if(v <= {mq}) return (uint8_t)(((v - {mp}) * 100u) / {mq - mp}u);",
+        f"  return (uint8_t)((({mr} - v) * 100u) / {mr - mq}u);",
+        "}",
+        "",
+        "static uint8_t mu_H(uint8_t v)",
+        "{",
+        f"  if(v <= {hc}) return 0;",
+        f"  if(v >= {hd}) return 100;",
+        f"  return (uint8_t)(((v - {hc}) * 100u) / {hd - hc}u);",
+        "}",
+        "",
+        "static uint8_t min2(uint8_t a, uint8_t b) { return a < b ? a : b; }",
+        "",
+        "/* Sugeno weighted average, epsilon = 1, weights on the 0..100 scale */",
+        "static uint8_t sugeno(const uint8_t *w, const uint8_t *z, uint8_t n)",
+        "{",
+        "  uint32_t num = 0, den = 1;",
+        "  uint8_t r;",
+        "  for(r = 0; r < n; r++) {",
+        "    num += (uint32_t)w[r] * z[r];",
+        "    den += w[r];",
+        "  }",
+        "  return (uint8_t)(num / den);",
+        "}",
+        "",
+    ]
+    _export_unit_fn(ra_pool, ra_m, "infer_ra", ["v1", "v3", "v4"], L)
+    _export_unit_fn(si_pool, si_m, "infer_si", ["v2", "v5"], L)
+    _export_unit_fn(cx_pool, cx_m, "infer_cx", ["v6", "v7"], L)
+    _export_unit_fn(top_pool, top_m, "infer_top", ["ra", "si", "cx"], L)
+    L += [
+        "uint8_t",
+        "fuzzrid_fuzzy_infer_ac_hfs(uint8_t v1, uint8_t v2, uint8_t v3, uint8_t v4,",
+        "                           uint8_t v5, uint8_t v6, uint8_t v7)",
+        "{",
+        "  return infer_top(infer_ra(v1, v3, v4), infer_si(v2, v5), infer_cx(v6, v7));",
+        "}",
+        "",
+        "/* Same, exposing the layer-1 intermediates for logging. Any out-pointer may be NULL. */",
+        "uint8_t",
+        "fuzzrid_fuzzy_infer_ac_hfs_x(uint8_t v1, uint8_t v2, uint8_t v3, uint8_t v4,",
+        "                             uint8_t v5, uint8_t v6, uint8_t v7,",
+        "                             uint8_t *ra_out, uint8_t *si_out, uint8_t *cx_out)",
+        "{",
+        "  uint8_t ra = infer_ra(v1, v3, v4);",
+        "  uint8_t si = infer_si(v2, v5);",
+        "  uint8_t cx = infer_cx(v6, v7);",
+        "  if(ra_out) *ra_out = ra;",
+        "  if(si_out) *si_out = si;",
+        "  if(cx_out) *cx_out = cx;",
+        "  return infer_top(ra, si, cx);",
+        "}",
+    ]
     with open(fname, "w") as f:
-        f.write("\n".join(lines) + "\n")
+        f.write("\n".join(L) + "\n")

@@ -27,10 +27,10 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "common"))
 
-from fuzzy import MFConfig, firing_matrix, expert_arrays, sugeno_ac
+from fuzzy import set_arithmetic, MFConfig, firing_matrix, sugeno_ac
 from candidates import build_pool
 from optimize import f1_fpr
-from report import rules_listing, export_c, overlap_stats
+from report import rules_listing, export_c
 from real_data import (load_real_events, features_labels, stratified_scenario_split,
                        round_holdout_split, stratified_subsample)
 
@@ -58,9 +58,12 @@ def main():
     ap.add_argument("--test-frac", type=float, default=0.3)
     ap.add_argument("--train-sample", type=int, default=40000)
     ap.add_argument("--mf-high", type=str, default="50,80")
+    ap.add_argument("--arith", choices=["int", "float"], default="int",
+                    help="int = firmware integer arithmetic (default), float = continuous model")
     ap.add_argument("--min-rules", type=int, default=12)
     ap.add_argument("--max-rules", type=int, default=35)
     args = ap.parse_args()
+    set_arithmetic(args.arith)
 
     hc, hd = (int(x) for x in args.mf_high.split(","))
     mf = MFConfig(high=(hc, hd))
@@ -77,10 +80,8 @@ def main():
     pool = build_pool(X_trs, y_trs, mf, max_terms=args.max_terms,
                       min_support=args.min_support, conf_margin=args.conf_margin,
                       verbose=False)
-    e_ants, e_z, _ = expert_arrays()
     M_te = mf.memberships(X_te)
     W_te = firing_matrix(M_te, pool["antecedents"])
-    exp_mask = pool["expert_mask"]
 
     df = pd.read_csv(os.path.join(args.out_dir, "pareto_front.csv"))
     row = pick_best(df, args.min_rules, args.max_rules)
@@ -91,7 +92,6 @@ def main():
 
     ac_best = sugeno_ac(W_te, pool["z"], subset=mask)
     f1_b, fpr_b, cm_b = f1_fpr(ac_best, y_te, args.ac_thr)
-    ov = overlap_stats(mask, exp_mask)
 
     out_txt = os.path.join(args.out_dir, "selected_rules_best_f1.txt")
     with open(out_txt, "w") as f:
@@ -99,9 +99,7 @@ def main():
                 f"(argmax f1_test, ties -> fewer rules)\n"
                 f"({int(mask.sum())} rules)\n"
                 f"test F1={f1_b:.4f} FPR={fpr_b:.4f} recall={cm_b['recall']:.4f} "
-                f"precision={cm_b['precision']:.4f}\n"
-                f"expert overlap: {ov['n_expert_in_base']}/18 expert rules kept, "
-                f"Jaccard={ov['jaccard']:.3f}\n\n"
+                f"precision={cm_b['precision']:.4f}\n\n"
                 + rules_listing(mask, pool) + "\n")
     export_c(mask, pool, os.path.join(args.out_dir, "selected_rules_best_f1.c"))
     print(f"[finalize] {args.out_dir} ({args.split}): {int(mask.sum())} rules, "

@@ -22,9 +22,7 @@ and z_r = the singleton in {0,25,50,75,100} nearest to 100*conf(r).
 Pruning keeps rules with support >= min_support and |conf-0.5| >= margin
 (rules that cannot discriminate carry no selective value).
 
-The pool is purely data-driven: the expert base R1-R18 is never added.
-expert_mask flags generated rules whose antecedent equals an R1-R18
-antecedent; it is used for overlap reporting only.
+The pool is purely data-driven: no hand-crafted rules are used.
 """
 
 from __future__ import annotations
@@ -32,7 +30,7 @@ from itertools import combinations, product
 import numpy as np
 
 from fuzzy import (N_FEATURES, DONT_CARE, Z_LEVELS, MFConfig,
-                   firing_matrix, expert_arrays)
+                   firing_matrix)
 
 
 def wang_mendel_antecedents(M: np.ndarray, max_rules: int | None = None) -> np.ndarray:
@@ -78,7 +76,7 @@ def build_pool(X: np.ndarray, y: np.ndarray, mf: MFConfig,
                wm_max_rules: int = 200,
                verbose: bool = True):
     """Returns dict with antecedents (P,7), z (P,), conf, support, names,
-    expert_mask (bool P,), and the precomputed firing matrix W (n,P)."""
+    and the precomputed firing matrix W (n,P)."""
     M = mf.memberships(X)
 
     ants_enum = enumerate_antecedents(max_terms)
@@ -99,15 +97,9 @@ def build_pool(X: np.ndarray, y: np.ndarray, mf: MFConfig,
     src = [s for s, k in zip(src, keep) if k]
     W = W[:, keep]
     names = [f"G{i+1}({s})" for i, s in enumerate(src)]
-    # Mark generated rules that match an expert antecedent, so overlap_stats
-    # can measure agreement with R1-R18. Nothing is added to the pool.
-    e_ants, _, _ = expert_arrays()
-    expert_mask = np.array([any((ea == a).all() for ea in e_ants) for a in ants],
-                           dtype=bool)
 
     if verbose:
         print(f"[pool] enumerated={len(ants_enum)}  wang-mendel={len(ants_wm)}  "
-              f"after pruning={len(ants)} candidates "
-              f"({int(expert_mask.sum())} match an expert antecedent)")
+              f"after pruning={len(ants)} candidates")
     return dict(antecedents=ants, z=z, conf=conf, support=support,
-                names=names, expert_mask=expert_mask, W=W)
+                names=names, W=W)

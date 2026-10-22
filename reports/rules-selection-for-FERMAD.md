@@ -940,12 +940,15 @@ python3 methods/cars/finalize_selection.py --split round_holdout --out-dir outpu
 #   -> selected_rules_best_f1.{txt,c}
 ```
 
-Defaults that reproduce the reported results:
+Current defaults (the same values `config.sh` passes via `./run_cars.sh`):
 
 | Script | Defaults |
 |---|---|
-| `run_real_selection.py` | `--pop 150 --gens 250 --min-rules 12 --max-rules 29 --train-sample 40000 --seed 42 --ac-thr 65 --mf-high 60,90` |
-| `run_loso.py` | `--pop 80 --gens 120 --min-rules 12 --max-rules 29 --train-sample 30000 --seed 42` |
+| `run_real_selection.py` | `--pop 150 --gens 250 --min-rules 12 --max-rules 35 --train-sample 40000 --seed 42 --ac-thr 65 --mf-high 50,80 --arith int` |
+| `run_loso.py` | `--pop 80 --gens 120 --min-rules 12 --max-rules 35 --train-sample 30000 --seed 42 --mf-high 50,80 --arith int` |
+
+The legacy results in `outputs/legacy_2026-09/` used `--max-rules 29 --mf-high 60,90`,
+float scoring, and an expert-seeded pool and population, which no longer exist.
 | `finalize_selection.py` | must use the same `--seed`, `--train-sample` and `--test-frac` as the run it finalises, or the pool will not match and the mask reconstruction assert fails |
 
 Other useful flags: `--csv-root` (input folder), `--out-root` (output folder) and `--seed N`,

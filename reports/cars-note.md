@@ -1,5 +1,11 @@
 # `outputs/cars/` — what's in each folder
 
+> **Legacy results (2026-10-22).** This note records runs made with the old settings: expert
+> rules injected into the pools and initial populations, a 12–29 rule budget, High 60–90 and
+> float scoring. The files are now in `outputs/legacy_2026-09/`; paths below that start with
+> `outputs/cars/` or `outputs/thfis/` refer to that folder. For the current method see
+> `reports/offline-rule-selection-methods.md` and `./run_cars.sh` / `./run_thfis.sh`.
+
 Output of the **flat** (single 7-input engine) NSGA-II rule selection run on the
 real `data/processed` corpus. The hierarchical counterpart lives in
 `outputs/thfis/` with the same three-folder layout.

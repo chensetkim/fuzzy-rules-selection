@@ -1,9 +1,9 @@
 # CARS — flat offline rule selection for FERMAD
 
-Selects the FERMAD rule base from data instead of by expert choice:
-**candidate generation (Wang–Mendel + bounded enumeration) → multi-objective
-NSGA-II subset selection**, scored against the hand-crafted base R1–R18 on the
-same test set (comparison only; R1–R18 is never added to the selection).
+Selects the FERMAD rule base from data alone: **candidate generation
+(Wang–Mendel + bounded enumeration) → multi-objective NSGA-II subset
+selection**. No hand-crafted rules are used anywhere: not in the pool, not in
+the initial population, and not as a built-in baseline.
 
 Run everything with `./run_cars.sh` from the repo root (settings in `config.sh`).
 
@@ -29,23 +29,23 @@ data/processed/{mobile,static}/r*/{3,6,9}/*.csv   (scripts/parse_serial.py outpu
                       objectives (min): 1−F1, FPR, rule count / max_rules
                       constraint: min_rules ≤ |S| ≤ max_rules
                       random initial population
+                      scored with the mote's integer arithmetic (ARITH=int, default):
+                      uint8 memberships, integer min, AC = ⌊Σw·z / (1+Σw)⌋, bit-exact
+                      with fuzzrid-fuzzy.c; ARITH=float gives the continuous model
         ▼
  common/report.py     pareto_front.csv · selected_rules.txt · selected_rules.c
-                      overlap_report.txt (overlap with R1–R18 antecedents)
 ```
 
 ## Outputs (per split)
 
 - **pareto_front.csv** — every non-dominated rule base with train/test F1, FPR,
-  recall, precision, rule count, and overlap with R1–R18.
+  recall, precision and rule count.
 - **selected_rules.txt** — the knee-point base, human readable, with per-rule
-  support and confidence. `[gen=expert]` marks a generated rule whose IF-part
-  equals an R1–R18 rule.
+  support and confidence.
 - **selected_rules.c** — the same base as the integer-arithmetic rule block of
   `fuzzrid_fuzzy_infer_ac()` (min t-norm via `min2`, ε=1 Sugeno weighted average).
 - **selected_rules_best_f1.{txt,c}** — best test-F1 base within the rule budget
   (`finalize_selection.py`).
-- **overlap_report.txt** — overlap with R1–R18 across the whole front.
 
 ## Guardrails (state these in the paper's limitations/validity)
 
@@ -66,11 +66,11 @@ data/processed/{mobile,static}/r*/{3,6,9}/*.csv   (scripts/parse_serial.py outpu
 | `run_real_selection.py` | Primary + round-holdout selection |
 | `run_loso.py` | Leave-one-scenario-out selection (S1..S6) |
 | `finalize_selection.py` | Best-F1 re-pick within the rule budget |
-| `../../common/fuzzy.py` | MFs (firmware-faithful), rule encoding, vectorised Sugeno AC, canonical R1–R18 |
+| `../../common/fuzzy.py` | MFs (firmware-faithful), rule encoding, vectorised Sugeno AC |
 | `../../common/real_data.py` | Loader + labelling + splits for `data/processed` |
 | `../../common/candidates.py` | WM + enumeration candidate pool, certainty-grade consequents, pruning |
 | `../../common/optimize.py` | NSGA-II (pymoo), F1/FPR/size objectives |
-| `../../common/report.py` | Pareto table, overlap stats, C export |
+| `../../common/report.py` | Pareto table, rule listing, C export |
 
 Cite: Wang & Mendel (1992) for rule generation from data; Ishibuchi, Murata &
 Türkşen (1997) / Ishibuchi & Yamamoto (2004) for GA-based fuzzy rule selection with

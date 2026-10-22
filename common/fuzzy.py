@@ -2,9 +2,14 @@
 fuzzy.py -- Fuzzy core faithful to fuzzrid-fuzzy.c
 ====================================================
 Membership functions, rule encoding, vectorised firing strengths, and
-Sugeno weighted-average defuzzification, matching the on-device integer
-implementation (Algorithm 2) so that offline rule selection evaluates
-exactly the inference the Z1/MSP430 firmware will run.
+Sugeno weighted-average defuzzification.
+
+Arithmetic (set_arithmetic):
+  "int"   (default) exactly the on-device integer implementation (Algorithm 2):
+          memberships are uint8 0..100 with truncating division
+          ((v-a)*100/(b-a)), firing = integer min, AC = floor(sum w*z / (1 + sum w)).
+          Offline selection then scores the inference the Z1/MSP430 runs.
+  "float" the continuous model: memberships in [0,1], AC = sum w*z / (sum w + 0.01).
 
 Rule encoding
 -------------
@@ -17,6 +22,21 @@ Firing strength = min t-norm over the specified (non-zero) terms.
 
 from __future__ import annotations
 import numpy as np
+
+_INTEGER = True
+
+
+def set_arithmetic(mode: str) -> None:
+    """Select "int" (firmware-faithful, default) or "float" arithmetic for
+    memberships() and sugeno_ac() everywhere."""
+    global _INTEGER
+    if mode not in ("int", "float"):
+        raise ValueError(f"arithmetic must be 'int' or 'float', not {mode!r}")
+    _INTEGER = mode == "int"
+
+
+def integer_arithmetic() -> bool:
+    return _INTEGER
 
 N_FEATURES = 7
 DONT_CARE, LOW, MED, HIGH = 0, 1, 2, 3
@@ -44,6 +64,8 @@ class MFConfig:
         Returns M: (n_samples, 7, 3) with M[..., 0]=mu_L, 1=mu_M, 2=mu_H,
         each in [0,1]."""
         X = np.asarray(X, dtype=np.float64)
+        if _INTEGER:
+            return self._memberships_int(X)
         a, b = self.low
         mu_l = np.clip((b - X) / (b - a), 0.0, 1.0)
         p, q, r = self.med
@@ -51,6 +73,21 @@ class MFConfig:
         c, d = self.high
         mu_h = np.clip((X - c) / (d - c), 0.0, 1.0)
         return np.stack([mu_l, mu_m, mu_h], axis=-1)
+
+    def _memberships_int(self, X: np.ndarray) -> np.ndarray:
+        """trapezoidal_mf / triangular_mf of fuzzrid-fuzzy.c: inputs are uint8,
+        each slope is (dist * 100) / width with truncating integer division.
+        Returned as k/100 so firing_matrix (min) works unchanged."""
+        V = np.rint(X).astype(np.int64)
+        def ramp(dist, width):                     # 0..100, truncated
+            return np.clip(np.floor_divide(dist * 100, width), 0, 100)
+        a, b = self.low                            # 100 on [0,a], down to 0 at b
+        mu_l = np.where(V <= a, 100, ramp(b - V, b - a))
+        p, q, r = self.med                         # 0 at p, 100 at q, 0 at r
+        mu_m = np.where(V <= q, ramp(V - p, q - p), ramp(r - V, r - q))
+        c, d = self.high                           # 0 at c, up to 100 at d, 100 after
+        mu_h = np.where(V >= d, 100, ramp(V - c, d - c))
+        return np.stack([mu_l, mu_m, mu_h], axis=-1).astype(np.float64) / 100.0
 
 
 def firing_matrix(M: np.ndarray, antecedents: np.ndarray) -> np.ndarray:
@@ -84,43 +121,13 @@ def sugeno_ac(W: np.ndarray, z: np.ndarray, subset=None, eps: float = 0.01) -> n
     if subset is not None:
         W = W[:, subset]
         z = z[subset]
+    if _INTEGER:
+        # Firmware: uint8 weights 0..100, num/den with den = 1 + sum(w), floor.
+        Wi = np.rint(W * 100.0)
+        return np.floor_divide(Wi @ np.asarray(z, dtype=np.float64), Wi.sum(axis=1) + 1.0)
     num = W @ z
     den = W.sum(axis=1) + eps
     return num / den
-
-
-# ---------------------------------------------------------------------------
-# Canonical expert rule base R1-R18 (fuzzrid-fuzzy.c, release-1.3 rev 2.0+)
-# ---------------------------------------------------------------------------
-# antecedent index:      v1  v2  v3  v4  v5  v6  v7
-EXPERT_RULES = [
-    # (name, antecedent, z)
-    ("R1",  (HIGH, 0,    0,    0,    0,    0,    0), 100),  # v1 H -> VH
-    ("R2",  (0,    0,    0,    0,    0,    0, HIGH), 100),  # v7 H -> VH
-    ("R3",  (0,    0,    0, HIGH,    0,  LOW,    0),  75),  # v4 H & v6 L -> H
-    ("R4",  (0, HIGH,    0, HIGH,    0,    0,    0), 100),  # v4 H & v2 H -> VH
-    ("R5",  (0, HIGH,    0,  MED,    0,  LOW,    0),  75),  # v4 M & v2 H & v6 L
-    ("R6",  (0,    0, HIGH,    0,    0,  LOW,    0),  75),  # v3 H & v6 L -> H
-    ("R7",  (0, HIGH, HIGH,    0,    0,    0,    0), 100),  # v3 H & v2 H -> VH
-    ("R8",  (0, HIGH,  MED,    0,    0,  LOW,    0),  75),  # v3 M & v2 H & v6 L
-    ("R9",  (0,    0,    0,    0, HIGH,  LOW,    0),  75),  # v5 H & v6 L -> H
-    ("R10", (0, HIGH,    0,    0, HIGH,    0,    0), 100),  # v5 H & v2 H -> VH
-    ("R11", (0, HIGH,    0,    0,  MED,  LOW,    0),  75),  # v5 M & v2 H & v6 L
-    ("R12", (0,  MED,    0,  MED,    0, HIGH,    0),  50),  # v6 H & v2 M & v4 M
-    ("R13", (LOW,  0,    0,  LOW,    0, HIGH,    0),  25),  # v6 H & v1 L & v4 L
-    ("R14", (0,  LOW,  LOW,  LOW,  LOW,    0,  LOW),   0),  # all-clear (incl v7)
-    ("R15", (HIGH, 0,    0,    0,    0,    0, HIGH), 100),  # v1 H & v7 H -> VH
-    ("R16", (0,    0, HIGH,    0,    0,    0, HIGH), 100),  # v3 H & v7 H -> VH
-    ("R17", (0,    0, HIGH,    0, HIGH,    0,    0),  75),  # v3 H & v5 H -> H
-    ("R18", (LOW,  0,  LOW,    0,    0, HIGH,    0),   0),  # exonerate mobile
-]
-
-
-def expert_arrays():
-    ants = np.array([a for _, a, _ in EXPERT_RULES], dtype=np.int8)
-    z = np.array([c for _, _, c in EXPERT_RULES], dtype=np.float64)
-    names = [n for n, _, _ in EXPERT_RULES]
-    return ants, z, names
 
 
 def rule_str(ant, z) -> str:
