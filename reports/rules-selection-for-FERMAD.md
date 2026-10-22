@@ -386,7 +386,7 @@ infeasibility by constraint domination.
 
 | Component | Setting (select / LOSO) | Note |
 |---|---|---|
-| Population × generations | 150 × 250 / 80 × 120 (`POP`, `GENS`, `LOSO_POP`, `LOSO_GENS`) | 37,500 / 9,600 evaluations |
+| Population × generations | 150 × 250 for every split and LOSO fold (`POP`, `GENS`, `LOSO_POP`, `LOSO_GENS`) | 37,500 evaluations per run |
 | Crossover | Uniform, $p=0.9$ | Rules are an unordered set, so bit position carries no locality; one/two-point crossover would impose a false one. |
 | Mutation | Bit-flip, `prob_var = 1/n_var` | ≈ 1 expected flip per individual, the standard binary-GA rate. |
 | Duplicates | Eliminated | Preserves diversity on a plateau-heavy landscape. |
@@ -493,7 +493,8 @@ own AC values. (T-HFIS goes one step further and exports a complete, compilable
 
 | Setting | Default (QUICK=1) | Flag | Effect |
 |---|---|---|---|
-| `SEEDS` | `42` | `--seed` | Space-separated list; one `seed_<s>/` per seed. Seeds the split, the initial population and NSGA-II (and the training sample, if one is used) together. |
+| `SEEDS` | `42` | `--seed` | Search seeds, space-separated; one `seed_<s>/` per seed. Seeds the initial population and NSGA-II (and the training sample, if one is used). |
+| `SPLIT_SEED` | `42` | `--split-seed` | Seed of the primary 70/30 split; fixed across search seeds, so every seed is scored on the same test events |
 | `MIN_RULES` / `MAX_RULES` | 12 / 35 | `--min-rules` / `--max-rules` | Rule budget; `MAX_RULES` also normalises $f_3$ |
 | `MF_HIGH` | `50,80` | `--mf-high` | High-set breakpoints (§4.1) |
 | `AC_THR` | 65 | `--ac-thr` | Detection threshold $\tau$ |
@@ -505,7 +506,7 @@ own AC values. (T-HFIS goes one step further and exports a complete, compilable
 | `CARS_MAX_TERMS` | 4 | `--max-terms` | Enumeration bound; cost is $\sum_k \binom{7}{k}3^k$ — 5 terms gives 9,093 |
 | `POP` / `GENS` | 150 / 250 (20 / 5) | `--pop` / `--gens` | NSGA-II budget for select |
 | `TRAIN_SAMPLE` | 0 = whole partition (3,000) | `--train-sample` | Training events for select and finalize (§3.5) |
-| `LOSO_POP` / `LOSO_GENS` / `LOSO_TRAIN` | 80 / 120 / 0 (20 / 5 / 3,000) | (LOSO) | Same, for the six LOSO folds |
+| `LOSO_POP` / `LOSO_GENS` / `LOSO_TRAIN` | 150 / 250 / 0 (20 / 5 / 3,000) | (LOSO) | Same, for the six LOSO folds |
 | `CSV_ROOT` | `data/processed` | `--csv-root` | Input corpus |
 
 ---

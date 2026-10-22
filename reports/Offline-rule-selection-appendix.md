@@ -6,7 +6,10 @@
 >   floating-point evaluation.
 > - They illustrate the reporting format only. They cannot validate the revised procedure, and
 >   each must be replaced with the re-run value.
-> - [TBD] marks items with no preliminary value. Find all of them with `grep -n "†\|TBD"`.
+> - Values marked ‡ come from the **current** procedure, but from a single full-length run
+>   (search seed 42, 2026-10-22, `outputs/cars/run_full_seed42/`); they replace the † values
+>   where available and must be replaced by the $R\ge5$-seed results.
+> - [TBD] marks items with no preliminary value. Find all of them with `grep -n "†\|‡\|TBD"`.
 > - 2026-10-22: the procedure uses no hand-crafted rules at all (no seed base in the pool or
 >   the initial population, and no hand-crafted baseline), High is 0 at 50 → 100 at 80, and
 >   the rule cap is 35. Every † value predates this and was produced with a seed base injected.
@@ -177,7 +180,21 @@ Two kinds of event are removed rather than labelled:
 ## A.3 Candidate pool
 
 In P1–P3, every step in A.3 and A.4 uses only the training partition of the protocol or fold
-concerned. Algorithm A.1 summarises the whole procedure.
+concerned. Fig. A.1 gives an overview of CARS, and Algorithm A.1 summarises the whole procedure.
+
+![Overview of CARS](figures/cars-framework.png)
+
+**Fig. A.1.** Overview of CARS. (1) Cooja logs are parsed, labelled from each attacker's own
+launch time, cleaned, collapsed into weighted rows and split into training and test partitions
+(A.2). (2) A candidate pool is generated from the training partition only: all antecedents with
+at most four terms plus the 200 most occupied Wang–Mendel cells, with certainty-grade
+consequents and pruning (A.3). (3) NSGA-II searches rule subsets from a random initial
+population, minimising $1-F_1$, the false-positive rate (FPR) and the normalised rule count
+under $12\le|S|\le35$; every fitness evaluation uses the firmware's integer fuzzy inference
+(A.1.3, A.4). (4) One base is chosen from the Pareto front by training objectives only,
+evaluated on the held-out test rows against the data ceiling (A.6), and exported unchanged as
+integer C for the Z1 mote. Test rows never enter the selection. AC: attack confidence;
+LOSO: leave-one-scenario-out. No hand-crafted rules are used at any stage.
 
 **Algorithm A.1.** CARS.
 
@@ -242,7 +259,7 @@ $c_r\le0.35$); a prior-centred margin is evaluated as an ablation (Table A.5).
 
 **Generated rules only.** Every rule in the pool is generated from the training partition,
 with a data-assigned consequent. Each antecedent appears in the pool once. The pool contains
-**[TBD]** candidates across splits.
+688–775 candidates across the P1, P2 and P3 training partitions‡.
 
 ## A.4 Multi-objective subset selection
 
@@ -282,7 +299,8 @@ constraint violation.
 
 **Computational cost** (lines 6–7). The firing strengths of all candidates on the weighted rows
 are computed once. Each evaluation then reduces to a masked weighted sum over about 31,000 rows,
-which keeps a run tractable. A single run takes **[TBD]** minutes on **[TBD: hardware]**.
+which keeps a run tractable. On an Intel Core i7-11700 (16 threads), P1 and P2 together take
+6.4 min at the budget above‡; the six P3 folds at the same budget take an estimated 17 min.
 
 **Initial population** (line 8). Every individual is a sparse random subset with about 2% of
 candidates switched on. No prior rule base is seeded.
@@ -309,7 +327,7 @@ Table A.2 gives the reason for each design decision and the prior work it follow
 | Wang–Mendel-style cells | Anchor the pool in regions of input space the data occupies | [1] |
 | Enumeration of ≤4-term antecedents | Keep short, auditable rules reachable; Wang–Mendel rules always use all seven features | [2, 6] |
 | Certainty-grade consequents | Standard consequent assignment for fuzzy classification rules | [2, 3] |
-| Prior-relative confidence margin | Remove rules that are no more predictive than the base rate | — |
+| Confidence margin around 0.5 | Remove rules that fire about equally on attack and benign events; they only dilute the weighted average | — |
 | Binary subset encoding + NSGA-II | Canonical formulation of fuzzy rule selection; elitist, no niching parameter to tune | [3, 4] |
 | FPR as its own objective | At deployment prevalence false alarms dominate operating cost; $F_1$ on a balanced-ish test set understates this | [5] |
 | Rule count as an objective | Pressure toward compact bases inside the cap; size is a primary interpretability measure | [3, 6] |
@@ -349,8 +367,8 @@ levels:
 **Data ceiling.** Identical evidence vectors occur with both labels, so no classifier of
 $v_1..v_7$ can be perfect. For each test partition we report the $F_1$ of predicting every
 distinct vector as its majority label in that partition, an upper bound for any rule base
-(about 0.988 for P1 and P2). A result at or near it would indicate leakage rather than a better
-rule base.
+(0.988 for P1, 0.986 for P2, 0.979–1.000 for the P3 folds). A result at or near it would
+indicate leakage rather than a better rule base.
 
 **Coverage.** Coverage is reported separately by class:
 
@@ -367,26 +385,25 @@ establish the false-alarm burden at deployment prevalence, which is expected to 
 
 ### A.6.3 Results
 
-**Table A.3.** Test results at $\tau=65$: across-fold mean ± s.d. of per-fold seed medians.
+**Table A.3.** Test results at $\tau=65$: across-fold mean ± s.d. of per-fold seed medians
+(‡: one seed, so P3 shows the mean ± s.d. over its six folds).
 
 | Protocol | Rules | CARS P / R / $F_1$ | CARS FPR | CARS NF$_1$ / NF$_0$ |
 |---|---|---|---|---|
-| P1 | 15† | .975 / .863 / .915† | .0061† | 1.3% / 24.4%† |
-| P2 | 15† | .977 / .724 / .832† | .0038† | 0.0% / 8.4%† |
-| P3 (6 folds) | 12–19† | .965 / .760 / .836 ± .131† | .0064 ± .0015† | 7.7% / 30.9%† |
+| P1 | 14‡ | .978 / .796 / .878‡ | .0051‡ | [TBD] |
+| P2 | 16‡ | .965 / .701 / .812‡ | .0058‡ | [TBD] |
+| P3 (6 folds) | 14–25‡ | .973 / .743 / .828 ± .132‡ | .0052 ± .0019‡ | [TBD] |
 | P4 (deployed base) | [TBD] | [TBD] | [TBD] | [TBD] |
 
-**Reading the preliminary figures.** These † values come from the preliminary method, and
-three points about them carry over to the revised analysis:
+**Reading the single-seed figures.** Three points to check against the $R\ge5$-seed results:
 
-1. *False alarms.* FPR stayed below 1% in every protocol and every P3 fold (at most 0.82%†).
-2. *Detection.* $F_1$ was high in P1 and P2 (.915, .832) but uneven across the P3 folds. The
-   spread over P3 folds (s.d. 0.13) shows that transfer to an unseen attack variant is uneven.
-3. *Coverage.* The preliminary bases left a large share of benign events with no firing rule,
-   with NF$_0$ up to 89.5% in fold S2†. That fraction of the low FPR arises by default, not by
-   discrimination.
-
-The revised procedure is judged on the same measures.
+1. *False alarms.* FPR stayed below 1% in every protocol and every P3 fold (at most 0.87%‡), and
+   precision was at least 0.96: errors are missed attacks, not false alarms.
+2. *Detection.* $F_1$ falls from P1 to P2 (.878 to .812), so P1 is optimistic, and is uneven
+   across the P3 folds (s.d. 0.13): the slow-drift (S2) and forged two-hop (S6) variants reach
+   only $F_1\approx0.65$ with recall $\approx0.49$ when held out.
+3. *Coverage.* NF$_1$ and NF$_0$ are not yet computed **[TBD]**; they show how much of the low FPR
+   arises by default rather than by discrimination.
 
 **Table A.4.** Deployed rule base (antecedent → $z$; features not listed are $\ast$).
 
@@ -396,31 +413,33 @@ The revised procedure is judged on the same measures.
 
 | # | Antecedent | $z$ | Avail. | Sel. |
 |---|---|---|---|---|
-| 1 | $v_5L \wedge v_6M$ | 25† | [TBD] | [TBD] |
-| 2 | $v_3H \wedge v_6M$ | 75† | [TBD] | [TBD] |
-| 3 | $v_2M$ | 100† | [TBD] | [TBD] |
-| 4 | $v_2M \wedge v_4H \wedge v_5L \wedge v_7L$ | 100† | [TBD] | [TBD] |
-| 5 | $v_2M \wedge v_3H$ | 100† | [TBD] | [TBD] |
-| 6 | $v_2H \wedge v_4M \wedge v_5L \wedge v_6M$ | 75† | [TBD] | [TBD] |
-| 7 | $v_2H \wedge v_3H \wedge v_5L \wedge v_6L$ | 100† | [TBD] | [TBD] |
-| 8 | $v_2H \wedge v_3H \wedge v_4M \wedge v_6M$ | 75† | [TBD] | [TBD] |
-| 9 | $v_1L \wedge v_5M$ | 100† | [TBD] | [TBD] |
-| 10 | $v_1L \wedge v_2H \wedge v_7L$ | 100† | [TBD] | [TBD] |
-| 11 | $v_1H \wedge v_3H \wedge v_6M$ | 75† | [TBD] | [TBD] |
-| 12 | $v_1H \wedge v_3H \wedge v_4L \wedge v_6M$ | 75† | [TBD] | [TBD] |
-| 13 | $v_1H \wedge v_2H \wedge v_4H \wedge v_5L$ | 100† | [TBD] | [TBD] |
-| 14 | $v_1H \wedge v_2H \wedge v_3H \wedge v_4L \wedge v_5L \wedge v_6M \wedge v_7L$ | 75† | [TBD] | [TBD] |
-| 15 | $v_3H \wedge v_6L$ | 75† | [TBD] | [TBD] |
+| 1 | $v_5L \wedge v_6M$ | 25‡ | [TBD] | [TBD] |
+| 2 | $v_3H \wedge v_5L \wedge v_6L \wedge v_7L$ | 100‡ | [TBD] | [TBD] |
+| 3 | $v_3H \wedge v_4L \wedge v_5L$ | 75‡ | [TBD] | [TBD] |
+| 4 | $v_2L \wedge v_3H \wedge v_5L \wedge v_7L$ | 25‡ | [TBD] | [TBD] |
+| 5 | $v_2M \wedge v_7L$ | 100‡ | [TBD] | [TBD] |
+| 6 | $v_2M \wedge v_3H \wedge v_7L$ | 100‡ | [TBD] | [TBD] |
+| 7 | $v_2M \wedge v_3H \wedge v_6M$ | 100‡ | [TBD] | [TBD] |
+| 8 | $v_2H \wedge v_4M \wedge v_5L \wedge v_6M$ | 75‡ | [TBD] | [TBD] |
+| 9 | $v_2H \wedge v_3H \wedge v_4H \wedge v_7L$ | 100‡ | [TBD] | [TBD] |
+| 10 | $v_1L \wedge v_3H$ | 75‡ | [TBD] | [TBD] |
+| 11 | $v_1L \wedge v_2H$ | 100‡ | [TBD] | [TBD] |
+| 12 | $v_1L \wedge v_2H \wedge v_3H \wedge v_4L \wedge v_5L \wedge v_6L \wedge v_7L$ | 100‡ | [TBD] | [TBD] |
+| 13 | $v_1H \wedge v_4H$ | 75‡ | [TBD] | [TBD] |
+| 14 | $v_1H \wedge v_3H \wedge v_5L \wedge v_6L$ | 100‡ | [TBD] | [TBD] |
 
-*† Provisional: this is the 15-rule base from the preliminary P1 run (made with the earlier,
-seeded procedure; #15 was a seed rule). It is replaced by the deployed base from the
-full-corpus run, in which every rule is generated from data.*
+*‡ Provisional: the 14-rule knee base of the current procedure on the P1 training partition
+(one seed). Rule 12 is a Wang–Mendel cell; all others come from the enumeration. It is replaced
+by the deployed base from the full-corpus run.*
 
-**Interpretation of the rules.** The preliminary base illustrates how a selected base reads:
+**Interpretation of the rules.** The provisional base illustrates how a selected base reads:
 
-- Trickle resets at Medium or High ($v_2$) are the most frequent attack indicator.
-- High CUSUM drift ($v_3$) combined with a mobility condition ($v_6$) yields High confidence.
-- A single broad rule (#1) maps low sign-flip activity with moderate mobility to Low confidence.
+- Trickle resets ($v_2$) at Medium or High are the strongest attack indicator (rules 5–9, 11–12).
+- High CUSUM drift ($v_3$) appears in eight rules; it gives High or Very High confidence when
+  combined with low sign-flip activity ($v_5$) or low mobility ($v_6$).
+- $v_7$ Low (no two-hop forgery evidence) is a common side condition rather than an indicator.
+- A single broad rule (#1, mean firing strength 0.46) maps low sign-flip activity with moderate
+  mobility to Low confidence.
 
 **Interpretation of selection frequency.** Selection frequency measures how *stable* a rule is
 under the specified procedure. It does not show that an individual rule is necessary or
@@ -451,12 +470,13 @@ accounts for this.
 | Labelling | $y=1$ iff observed node $j$ is an attacker and $t\ge t_a(j)$, its own launch time; attacker-reported events and pre-launch attacker events removed |
 | Pruning | $s_{\min}=0.005$; $\lvert c_r-0.5\rvert\ge m=0.15$ |
 | Rule bounds | $12\le\lvert S\rvert\le35$ |
-| NSGA-II | pop 150, 250 generations, uniform crossover 0.9, bit-flip $1/\lvert P\rvert$, duplicate elimination |
+| NSGA-II | pop 150, 250 generations in every protocol and fold; uniform crossover 0.9, bit-flip $1/\lvert P\rvert$, duplicate elimination |
+| Inference arithmetic | firmware-exact integer (A.1.3) |
 | Initial population | random subsets at ≈2% density (no seed base) |
 | Training data | the whole training partition, as distinct (vector, label) rows weighted by event count; used for pool generation, consequents, pruning and fitness |
 | Solution choice | weights (0.6, 0.3, 0.1) on min–max-normalised $(f_1,f_2,f_3)$ |
 | Search seeds | $R=$ **[TBD, ≥5]**; deployment run seed 42† |
-| Split seed (P1) | 42 |
+| Split seed (P1) | 42, fixed for every search seed, so all seeds are evaluated on the same P1 test set |
 
 The code, the deployed base, and the scripts that regenerate every table
 are available at **[TBD: link]**. The simulation configurations and event logs are available

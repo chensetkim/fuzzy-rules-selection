@@ -50,7 +50,7 @@ for seed in $SEEDS; do
         run_step "run_real_selection" "$S/logs/select.log" \
             "$PY" methods/cars/run_real_selection.py "${COMMON[@]}" --out-root "$S" \
             --pop "$POP" --gens "$GENS" --train-sample "$TRAIN_SAMPLE" \
-            --test-frac "$TEST_FRAC" --seed "$seed"
+            --test-frac "$TEST_FRAC" --seed "$seed" --split-seed "$SPLIT_SEED"
     fi
 
     if want loso; then
@@ -68,7 +68,7 @@ for seed in $SEEDS; do
             run_step "finalize $split" "$S/logs/finalize_$split.log" \
                 "$PY" methods/cars/finalize_selection.py "${COMMON[@]}" --split "$split" \
                 --out-dir "$S/$split" --train-sample "$TRAIN_SAMPLE" \
-                --test-frac "$TEST_FRAC" --seed "$seed"
+                --test-frac "$TEST_FRAC" --seed "$seed" --split-seed "$SPLIT_SEED"
         done
     fi
 done

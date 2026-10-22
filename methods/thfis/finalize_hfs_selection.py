@@ -54,6 +54,8 @@ def main():
     ap.add_argument("--min-support", type=float, default=0.01)
     ap.add_argument("--conf-margin", type=float, default=0.15)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--split-seed", type=int, default=42,
+                    help="seed of the primary (P1) 70/30 split; fixed across search seeds")
     ap.add_argument("--test-frac", type=float, default=0.3)
     ap.add_argument("--train-sample", type=int, default=0,
                     help="events sampled for pool/NSGA-II; 0 = whole training partition")
@@ -71,7 +73,7 @@ def main():
     mf = MFConfig(high=(hc, hd))
     ev = load_real_events(args.csv_root, label_start=args.label_start, verbose=False)
     if args.split == "primary":
-        tr, te = stratified_scenario_split(ev, test_frac=args.test_frac, seed=args.seed)
+        tr, te = stratified_scenario_split(ev, test_frac=args.test_frac, seed=args.split_seed)
     else:
         tr, te = round_holdout_split(ev, test_round="r3")
 

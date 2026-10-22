@@ -11,7 +11,7 @@
 # shellcheck disable=SC1091
 source "$ROOT/config.sh"
 
-CONFIG_VARS=(QUICK SEEDS MIN_RULES MAX_RULES MF_HIGH AC_THR ARITH LABEL_START TEST_FRAC CONF_MARGIN
+CONFIG_VARS=(QUICK SEEDS SPLIT_SEED MIN_RULES MAX_RULES MF_HIGH AC_THR ARITH LABEL_START TEST_FRAC CONF_MARGIN
              POP GENS TRAIN_SAMPLE LOSO_POP LOSO_GENS LOSO_TRAIN CSV_ROOT
              CARS_MAX_TERMS CARS_MIN_SUPPORT THFIS_MIN_SUPPORT)
 
@@ -75,7 +75,7 @@ else
     } > "$OUT/config.txt"
 fi
 echo "run folder: $OUT"
-echo "seeds: $SEEDS | rules $MIN_RULES-$MAX_RULES | MF_HIGH=$MF_HIGH | AC_THR=$AC_THR | ARITH=$ARITH | pop/gens $POP/$GENS (loso $LOSO_POP/$LOSO_GENS)"
+echo "seeds: $SEEDS (P1 split seed $SPLIT_SEED) | rules $MIN_RULES-$MAX_RULES | MF_HIGH=$MF_HIGH | AC_THR=$AC_THR | ARITH=$ARITH | pop/gens $POP/$GENS (loso $LOSO_POP/$LOSO_GENS)"
 
 # ---------------------------------------------------------------------------
 # 0. check

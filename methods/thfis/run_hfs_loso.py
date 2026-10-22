@@ -25,8 +25,8 @@ def main():
     ap.add_argument("--min-rules", type=int, default=12)
     ap.add_argument("--min-support", type=float, default=0.01)
     ap.add_argument("--conf-margin", type=float, default=0.15)
-    ap.add_argument("--pop", type=int, default=80)
-    ap.add_argument("--gens", type=int, default=100)
+    ap.add_argument("--pop", type=int, default=150)
+    ap.add_argument("--gens", type=int, default=250)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--train-sample", type=int, default=0,
                     help="events sampled for pool/NSGA-II; 0 = whole training partition")

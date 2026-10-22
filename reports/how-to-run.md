@@ -32,9 +32,10 @@ SEEDS="1 2 3 4 5" ./run_thfis.sh
 ./run_cars.sh -h                       # usage
 ```
 
-**Full length** = the `config.sh` defaults: select and finalize with population 150 × 250
-generations, LOSO with 80 × 120 generations per fold, the whole training partition (as weighted
-rows), integer arithmetic, labels from each attacker's launch time.
+**Full length** = the `config.sh` defaults: population 150 × 250 generations for select,
+finalize and every LOSO fold, the whole training partition (as weighted rows), integer
+arithmetic, labels from each attacker's launch time. `SEEDS` are search seeds; the primary
+70/30 split is fixed by `SPLIT_SEED=42`, so every seed is scored on the same test events.
 
 **In the background** (keeps running after the terminal closes):
 
@@ -51,15 +52,17 @@ CARS and T-HFIS can run at the same time; they write to separate folders.
 
 ## How long
 
-Measured on PC1 (16 cores, otherwise mostly idle) for one seed:
+On PC1 (Intel Core i7-11700, 16 threads, otherwise mostly idle) for one seed. CARS select was
+measured; the rest is estimated from it (LOSO now uses the full 150 × 250 budget, about 3.9×
+the work of the former 80 × 120):
 
-| Step | CARS | T-HFIS (estimated) |
+| Step | CARS | T-HFIS |
 |---|---|---|
-| Select (primary + round-holdout) | 6.4 min | ≈ 21 min |
-| LOSO (6 folds) | 4.4 min | ≈ 16 min |
+| Select (primary + round-holdout) | 6.4 min (measured) | ≈ 21 min |
+| LOSO (6 folds) | ≈ 17 min | ≈ 60 min |
 | Finalize + summary | < 1 min | < 1 min |
-| **One seed** | **≈ 11 min** | **≈ 37 min** |
-| **Five seeds** | **≈ 1 h** | **≈ 3 h** |
+| **One seed** | **≈ 24 min** | **≈ 82 min** |
+| **Five seeds** | **≈ 2 h** | **≈ 7 h** |
 
 Seeds run one after another inside one run. Peak memory ≈ 1.8 GB (CARS), ≈ 0.4 GB (T-HFIS).
 Other load on the machine makes it slower.

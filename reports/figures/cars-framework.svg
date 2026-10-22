@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 810" width="1400" height="810" font-family="Noto Sans, DejaVu Sans, Arial, sans-serif">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/></marker>
+<style>.t{font-size:15px;font-weight:700}.s{font-size:12px}.h{font-size:15px;font-weight:700;fill:#ffffff}.l{font-size:12px;fill:#374151;font-style:italic}.ttl{font-size:21px;font-weight:700;fill:#111827}.st{font-size:13px;fill:#4b5563}</style></defs>
+<rect width="1400" height="810" fill="#ffffff"/>
+<text x="40" y="38" class="ttl">CARS: data-driven fuzzy rule selection for FERMAD</text>
+<text x="40" y="60" class="st">No hand-crafted rules at any stage; every score uses the mote's own integer arithmetic.</text>
+<rect x="40" y="78" width="300" height="38" rx="8" fill="#1d4ed8"/>
+<text x="190" y="103" text-anchor="middle" class="h">1  Data preparation</text>
+<rect x="380" y="78" width="300" height="38" rx="8" fill="#15803d"/>
+<text x="530" y="103" text-anchor="middle" class="h">2  Candidate rule pool</text>
+<rect x="720" y="78" width="300" height="38" rx="8" fill="#c2410c"/>
+<text x="870" y="103" text-anchor="middle" class="h">3  Multi-objective selection</text>
+<rect x="1060" y="78" width="300" height="38" rx="8" fill="#6d28d9"/>
+<text x="1210" y="103" text-anchor="middle" class="h">4  Choice, evaluation, deployment</text>
+<rect x="40" y="140" width="300" height="66" rx="9" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="190.0" y="163.0" text-anchor="middle" class="t" fill="#111827">Cooja serial logs</text>
+<text x="190.0" y="181.0" text-anchor="middle" class="s" fill="#374151">one run per attack type × environment</text>
+<text x="190.0" y="196.0" text-anchor="middle" class="s" fill="#374151">× attacker count × round</text>
+<rect x="40" y="224" width="300" height="66" rx="9" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="190.0" y="247.0" text-anchor="middle" class="t" fill="#111827">Parse and validate</text>
+<text x="190.0" y="265.0" text-anchor="middle" class="s" fill="#374151">FUZZRID,DET lines → evidence v1..v7</text>
+<text x="190.0" y="280.0" text-anchor="middle" class="s" fill="#374151">range-checked 0–100</text>
+<path d="M190,206 L190,222" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="40" y="308" width="300" height="66" rx="9" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="190.0" y="331.0" text-anchor="middle" class="t" fill="#111827">Label</text>
+<text x="190.0" y="349.0" text-anchor="middle" class="s" fill="#374151">attack iff the observed node is an attacker</text>
+<text x="190.0" y="364.0" text-anchor="middle" class="s" fill="#374151">and t ≥ that attacker's own launch</text>
+<path d="M190,290 L190,306" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="40" y="392" width="300" height="66" rx="9" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="190.0" y="415.0" text-anchor="middle" class="t" fill="#111827">Clean</text>
+<text x="190.0" y="433.0" text-anchor="middle" class="s" fill="#374151">drop attacker-reported events and</text>
+<text x="190.0" y="448.0" text-anchor="middle" class="s" fill="#374151">attacker events before launch</text>
+<path d="M190,374 L190,390" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="40" y="476" width="300" height="66" rx="9" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="190.0" y="499.0" text-anchor="middle" class="t" fill="#111827">Weighted rows</text>
+<text x="190.0" y="517.0" text-anchor="middle" class="s" fill="#374151">identical (vector, label) events</text>
+<text x="190.0" y="532.0" text-anchor="middle" class="s" fill="#374151">→ one row × event count</text>
+<path d="M190,458 L190,474" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="40" y="560" width="300" height="66" rx="9" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="190.0" y="583.0" text-anchor="middle" class="t" fill="#111827">Split</text>
+<text x="190.0" y="601.0" text-anchor="middle" class="s" fill="#374151">primary 70/30 · round-holdout ·</text>
+<text x="190.0" y="616.0" text-anchor="middle" class="s" fill="#374151">leave-one-scenario-out</text>
+<path d="M190,542 L190,558" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="380" y="140" width="300" height="66" rx="9" fill="#f0fdf4" stroke="#15803d" stroke-width="1.6"/>
+<text x="530.0" y="163.0" text-anchor="middle" class="t" fill="#111827">Bounded enumeration</text>
+<text x="530.0" y="181.0" text-anchor="middle" class="s" fill="#374151">every antecedent that uses</text>
+<text x="530.0" y="196.0" text-anchor="middle" class="s" fill="#374151">1 to 4 of the 7 features</text>
+<rect x="380" y="224" width="300" height="66" rx="9" fill="#f0fdf4" stroke="#15803d" stroke-width="1.6"/>
+<text x="530.0" y="247.0" text-anchor="middle" class="t" fill="#111827">Wang–Mendel cells</text>
+<text x="530.0" y="265.0" text-anchor="middle" class="s" fill="#374151">the 200 most occupied</text>
+<text x="530.0" y="280.0" text-anchor="middle" class="s" fill="#374151">full 7-term grid cells</text>
+<path d="M530,206 L530,222" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="380" y="308" width="300" height="66" rx="9" fill="#f0fdf4" stroke="#15803d" stroke-width="1.6"/>
+<text x="530.0" y="331.0" text-anchor="middle" class="t" fill="#111827">Consequents</text>
+<text x="530.0" y="349.0" text-anchor="middle" class="s" fill="#374151">z = nearest of {0, 25, 50, 75, 100}</text>
+<text x="530.0" y="364.0" text-anchor="middle" class="s" fill="#374151">to 100 × certainty grade</text>
+<path d="M530,290 L530,306" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="380" y="392" width="300" height="66" rx="9" fill="#f0fdf4" stroke="#15803d" stroke-width="1.6"/>
+<text x="530.0" y="415.0" text-anchor="middle" class="t" fill="#111827">Pruning</text>
+<text x="530.0" y="433.0" text-anchor="middle" class="s" fill="#374151">support ≥ 0.005 and</text>
+<text x="530.0" y="448.0" text-anchor="middle" class="s" fill="#374151">|confidence − 0.5| ≥ 0.15</text>
+<path d="M530,374 L530,390" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="380" y="476" width="300" height="66" rx="9" fill="#15803d" stroke="#15803d" stroke-width="1.6"/>
+<text x="530.0" y="499.0" text-anchor="middle" class="t" fill="#ffffff">Candidate pool P</text>
+<text x="530.0" y="517.0" text-anchor="middle" class="s" fill="#e5e7eb">generated from the</text>
+<text x="530.0" y="532.0" text-anchor="middle" class="s" fill="#e5e7eb">training data only</text>
+<path d="M530,458 L530,474" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="380" y="600" width="300" height="96" rx="9" fill="#f0fdf4" stroke="#15803d" stroke-width="1.6"/>
+<text x="530.0" y="631.0" text-anchor="middle" class="t" fill="#111827">Fuzzy inference (firmware-exact)</text>
+<text x="530.0" y="649.0" text-anchor="middle" class="s" fill="#374151">L / M / H memberships, integer 0–100</text>
+<text x="530.0" y="664.0" text-anchor="middle" class="s" fill="#374151">min t-norm → AC = ⌊Σ w·z / (1 + Σ w)⌋</text>
+<text x="530.0" y="679.0" text-anchor="middle" class="s" fill="#374151">attack if AC ≥ 65</text>
+<rect x="720" y="140" width="260" height="66" rx="9" fill="#fff7ed" stroke="#c2410c" stroke-width="1.6"/>
+<text x="850.0" y="163.0" text-anchor="middle" class="t" fill="#111827">Chromosome</text>
+<text x="850.0" y="181.0" text-anchor="middle" class="s" fill="#374151">one bit per rule in P:</text>
+<text x="850.0" y="196.0" text-anchor="middle" class="s" fill="#374151">bit j = 1 ⇔ rule j is in base S</text>
+<rect x="720" y="224" width="260" height="66" rx="9" fill="#fff7ed" stroke="#c2410c" stroke-width="1.6"/>
+<text x="850.0" y="247.0" text-anchor="middle" class="t" fill="#111827">Random initial population</text>
+<text x="850.0" y="265.0" text-anchor="middle" class="s" fill="#374151">sparse random subsets,</text>
+<text x="850.0" y="280.0" text-anchor="middle" class="s" fill="#374151">no seeding</text>
+<rect x="720" y="308" width="260" height="66" rx="9" fill="#c2410c" stroke="#c2410c" stroke-width="1.6"/>
+<text x="850.0" y="331.0" text-anchor="middle" class="t" fill="#ffffff">Evaluate each base S</text>
+<text x="850.0" y="349.0" text-anchor="middle" class="s" fill="#e5e7eb">minimise  1 − F1,  FPR,  |S| / 35</text>
+<text x="850.0" y="364.0" text-anchor="middle" class="s" fill="#e5e7eb">subject to  12 ≤ |S| ≤ 35</text>
+<rect x="720" y="400" width="260" height="66" rx="9" fill="#fff7ed" stroke="#c2410c" stroke-width="1.6"/>
+<text x="850.0" y="423.0" text-anchor="middle" class="t" fill="#111827">Next generation</text>
+<text x="850.0" y="441.0" text-anchor="middle" class="s" fill="#374151">selection, uniform crossover,</text>
+<text x="850.0" y="456.0" text-anchor="middle" class="s" fill="#374151">bit-flip mutation</text>
+<rect x="720" y="506" width="260" height="66" rx="9" fill="#fff7ed" stroke="#c2410c" stroke-width="1.6"/>
+<text x="850.0" y="529.0" text-anchor="middle" class="t" fill="#111827">Pareto front</text>
+<text x="850.0" y="547.0" text-anchor="middle" class="s" fill="#374151">non-dominated</text>
+<text x="850.0" y="562.0" text-anchor="middle" class="s" fill="#374151">rule bases</text>
+<path d="M850,206 L850,222" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<path d="M850,290 L850,306" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<path d="M850,374 L850,398" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<path d="M980,433 L1000,433 L1000,341 L982,341" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<text x="1004" y="392" text-anchor="start" class="l">× 250</text>
+<path d="M850,466 L850,504" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<text x="858" y="490" text-anchor="start" class="l">after the last generation</text>
+<rect x="1060" y="140" width="300" height="66" rx="9" fill="#f5f3ff" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="1210.0" y="163.0" text-anchor="middle" class="t" fill="#111827">Knee pick</text>
+<text x="1210.0" y="181.0" text-anchor="middle" class="s" fill="#374151">weights 0.6 / 0.3 / 0.1 on the</text>
+<text x="1210.0" y="196.0" text-anchor="middle" class="s" fill="#374151">training objectives only</text>
+<rect x="1060" y="224" width="300" height="66" rx="9" fill="#6d28d9" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="1210.0" y="247.0" text-anchor="middle" class="t" fill="#ffffff">Selected rule base S*</text>
+<text x="1210.0" y="265.0" text-anchor="middle" class="s" fill="#e5e7eb">12–35 readable</text>
+<text x="1210.0" y="280.0" text-anchor="middle" class="s" fill="#e5e7eb">IF–THEN rules</text>
+<path d="M1210,206 L1210,222" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="1060" y="308" width="300" height="66" rx="9" fill="#f5f3ff" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="1210.0" y="331.0" text-anchor="middle" class="t" fill="#111827">Evaluation on held-out data</text>
+<text x="1210.0" y="349.0" text-anchor="middle" class="s" fill="#374151">F1, FPR, recall, precision,</text>
+<text x="1210.0" y="364.0" text-anchor="middle" class="s" fill="#374151">compared with the data ceiling</text>
+<path d="M1210,290 L1210,306" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="1060" y="392" width="300" height="66" rx="9" fill="#f5f3ff" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="1210.0" y="415.0" text-anchor="middle" class="t" fill="#111827">Integer C export</text>
+<text x="1210.0" y="433.0" text-anchor="middle" class="s" fill="#374151">rule block for</text>
+<text x="1210.0" y="448.0" text-anchor="middle" class="s" fill="#374151">fuzzrid_fuzzy_infer_ac()</text>
+<path d="M1210,374 L1210,390" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="1060" y="476" width="300" height="66" rx="9" fill="#6d28d9" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="1210.0" y="499.0" text-anchor="middle" class="t" fill="#ffffff">Z1 / MSP430 mote</text>
+<text x="1210.0" y="517.0" text-anchor="middle" class="s" fill="#e5e7eb">FERMAD detector,</text>
+<text x="1210.0" y="532.0" text-anchor="middle" class="s" fill="#e5e7eb">same integer arithmetic</text>
+<path d="M1210,458 L1210,474" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<path d="M340,593 L360,593 L360,257 L378,257" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<text x="364" y="215" text-anchor="start" class="l">training rows</text>
+<path d="M680,509 L692,509 L692,173 L718,173" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<path d="M680,648 L704,648 L704,341 L718,341" fill="none" stroke="#4b5563" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#ah)"/>
+<text x="712" y="640" text-anchor="start" class="l">fitness</text>
+<path d="M980,539 L1036,539 L1036,173 L1058,173" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<path d="M190,626 L190,780 L1048,780 L1048,341 L1058,341" fill="none" stroke="#4b5563" stroke-width="1.8" marker-end="url(#ah)"/>
+<text x="640" y="772" text-anchor="middle" class="l">test rows: never used for selection, scored with the same fuzzy inference</text>
+</svg>

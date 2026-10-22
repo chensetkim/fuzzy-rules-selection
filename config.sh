@@ -8,7 +8,8 @@ QUICK="${QUICK:-0}"
 if [ "$QUICK" = 1 ]; then q() { echo "$1"; }; else q() { echo "$2"; }; fi
 
 # ---- shared by both methods -------------------------------------------------
-SEEDS="${SEEDS:-${SEED:-42}}"               # space-separated list
+SEEDS="${SEEDS:-${SEED:-42}}"               # search seeds (space-separated list)
+SPLIT_SEED="${SPLIT_SEED:-42}"              # primary (P1) 70/30 split; fixed so every search seed sees the same test set
 MIN_RULES="${MIN_RULES:-12}"                # 12
 MAX_RULES="${MAX_RULES:-35}"                # 35
 MF_HIGH="${MF_HIGH:-50,80}"                 # High MF: 0 at 50 -> 100 at 80
@@ -20,8 +21,8 @@ CONF_MARGIN="${CONF_MARGIN:-0.15}"          # confidence margin for rule selecti
 POP="${POP:-$(q 20 150)}"                   # select + finalize
 GENS="${GENS:-$(q 5 250)}"                  # number of generations
 TRAIN_SAMPLE="${TRAIN_SAMPLE:-$(q 3000 0)}"   # training events for pool/NSGA-II; 0 = all (weighted rows)
-LOSO_POP="${LOSO_POP:-$(q 20 80)}"          # loso
-LOSO_GENS="${LOSO_GENS:-$(q 5 120)}"        # number of generations for loso
+LOSO_POP="${LOSO_POP:-$(q 20 150)}"         # loso (same budget as select)
+LOSO_GENS="${LOSO_GENS:-$(q 5 250)}"        # number of generations for loso
 LOSO_TRAIN="${LOSO_TRAIN:-$(q 3000 0)}"     # same, for loso; 0 = all
 CSV_ROOT="${CSV_ROOT:-data/processed}"      # path to processed CSV data
 
