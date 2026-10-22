@@ -1,10 +1,11 @@
-
-# Ignore Folder
-# Data/
-
 # Python virtual environment
 .venv/
 __pycache__/
 *.pyc
 
-Backup/*
+# Local backup archive (not tracked)
+data/archive/backup/
+
+# Scratch outputs from the synthetic smoke test
+methods/cars/synth_csv/
+methods/cars/out/
