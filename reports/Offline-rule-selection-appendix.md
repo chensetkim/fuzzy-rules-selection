@@ -1,9 +1,9 @@
 # Appendix A. Data-Driven Selection of the FERMAD Fuzzy Rule Base (CARS)
 
 > **Draft note: remove before submission.**
-> - Values marked † are *provisional*. They come from a preliminary method: a different seed
->   base, a 29-rule cap, one search seed, a 0.5-centred margin, pre-activation events
->   excluded, and floating-point evaluation.
+> - Values marked † are *provisional*. They come from a preliminary method: a seed base injected
+>   into the pool and initial population, a 29-rule cap, High 60–90, one search seed, and
+>   floating-point evaluation.
 > - They illustrate the reporting format only. They cannot validate the revised procedure, and
 >   each must be replaced with the re-run value.
 > - [TBD] marks items with no preliminary value. Find all of them with `grep -n "†\|TBD"`.
@@ -30,8 +30,8 @@ the training data alone and the search starts from random subsets (A.3–A.4); n
 rule base is used, either as a prior or as a baseline.
 
 **Deployed base.** The deployed rule base is the solution CARS selects on the full development
-corpus, subject to the capacity cap in A.4. It is compiled into the firmware without
-modification.
+corpus, subject to the capacity cap in A.4 **[TBD: the code has no full-corpus run yet; it runs
+P1–P3 only]**. It is compiled into the firmware without modification.
 
 **Remaining design choices.** The authors fixed the following inputs:
 
@@ -135,8 +135,8 @@ deployed when the corpus was recorded]**.
 
 ## A.2 Data and labelling
 
-**Development corpus.** The development corpus contains 397,915 detection events, 21.1% of
-them attacks. It comes from Cooja simulations of RPL networks under six rank-attack variants:
+**Development corpus.** The development corpus contains 388,338 detection events, 21.6% of
+them attacks (after the exclusions below). It comes from Cooja simulations of RPL networks under six rank-attack variants:
 
 | Variant | Attack behaviour |
 |---|---|
@@ -161,14 +161,20 @@ generated *after* all CARS settings and the deployed base were frozen. It uses n
 simulation seeds **[TBD: and a different topology/mobility trace]**. It was used for nothing
 except the P4 evaluation in A.6.
 
-**Labelling target.** The target is *current malicious behaviour*. An event is labelled
-malicious ($y=1$) when the observed node is an attacker and the event occurs after that
-attacker's activation. All other events are labelled benign ($y=0$). This includes the 9,577
-pre-activation observations of attackers, because those nodes behave honestly at that point:
-labelling them benign matches what the detector should output.
+**Labelling target.** The target is *current malicious behaviour*. The attack phase starts at
+a fixed $t_a=300$ s of simulated time. An event is labelled malicious ($y=1$) when the observed
+node is an attacker and $t\ge t_a$; all other retained events are labelled benign ($y=0$).
 
-Events *reported by* attacker nodes are removed. Attackers do not run the IDS honestly, so
-their reports are not evidence the deployed system would act on.
+Two kinds of event are removed rather than labelled:
+
+- Events *reported by* attacker nodes. Attackers do not run the IDS honestly, so their reports
+  are not evidence the deployed system would act on.
+- The 9,577 observations *of* attackers before $t_a$. Before launch an attacker behaves
+  honestly, so either label would put noise into a region the rules cannot separate.
+
+In the logs, 646 of the 648 attacker activations fall between 200 s and 299 s; attacker events
+between activation and $t_a$ are therefore among the removed ones. Two activations occur at
+329 s and 330 s, so up to 30 s of those attackers' honest behaviour is labelled malicious.
 
 ## A.3 Candidate pool
 
@@ -181,20 +187,25 @@ concerned. Algorithm A.1 summarises the whole procedure.
 Input : training events D, settings Θ (Table A.6)
 Output: selected rule base S*
 
- 1  P ← WangMendelCells(D, 200) ∪ Enumerate(max_terms = 4)
- 2  for each r in P:
- 3      c_r, s_r ← confidence and support of r on D          (integer arithmetic)
- 4      z_r      ← nearest element of Z to 100·c_r            (ties → smaller)
- 5  P ← { r ∈ P : s_r ≥ s_min  and  |c_r − π| ≥ m }
- 6  D_s ← stratified sample of D (40,000 events)
- 7  W ← firing strengths of every r ∈ P on every event in D_s (computed once)
+ 1  D_s ← stratified sample of D (40,000 events)
+ 2  P ← WangMendelCells(D_s, 200) ∪ Enumerate(max_terms = 4)
+ 3  for each r in P:
+ 4      c_r, s_r, z_r ← confidence, support, consequent of r on D_s  (integer arithmetic)
+ 5  P ← { r ∈ P : s_r ≥ s_min  and  |c_r − 0.5| ≥ m }
+ 6  W ← firing strengths of every r ∈ P on every event in D_s (computed once)
+ 7  (W is reused for every fitness evaluation)
  8  Pop_0 ← sparse random subsets
  9  Front ← NSGA-II(Pop_0; objectives (1−F1, FPR, |S|/U); 12 ≤ |S| ≤ U)
 10  S* ← argmin over Front of weighted, min–max-normalised training objectives
 11  return S*                                   (exported as integer C for the firmware)
 ```
 
-**Generated candidates** (line 1). Two generators produce the pool:
+**Fitness sample** (line 1). All of A.3 and A.4 works on a 40,000-event sample $D_s$ of the
+training partition. It is drawn without replacement from every stratum (scenario × deployment
+× attacker count × execution), in proportion to stratum size and with at least one event per
+stratum. Reported test metrics always use the full test partition.
+
+**Generated candidates** (line 2). Two generators produce the pool:
 
 - *Wang–Mendel-style cell rules* [1]. Each training event is assigned to the grid cell of its
   strongest term per feature, and the 200 most frequent cells become seven-term antecedents.
@@ -205,12 +216,12 @@ Output: selected rule base S*
 
 Enumerated rules use at most four features, so the two sets cannot overlap.
 
-**Consequents** (lines 2–4). For each candidate we compute its confidence and
-support [2], pooled over all training events:
+**Consequents** (lines 3–4). For each candidate we compute its confidence and
+support [2] over the events of $D_s$:
 
 $$
-c_r=\frac{\sum_{\mathbf{x}\in D:\,y=1}w_r(\mathbf{x})}{\sum_{\mathbf{x}\in D}w_r(\mathbf{x})},\qquad
-s_r=\frac{1}{100\,|D|}\sum_{\mathbf{x}\in D}w_r(\mathbf{x}).
+c_r=\frac{\sum_{\mathbf{x}\in D_s:\,y=1}w_r(\mathbf{x})}{\sum_{\mathbf{x}\in D_s}w_r(\mathbf{x})},\qquad
+s_r=\frac{1}{100\,|D_s|}\sum_{\mathbf{x}\in D_s}w_r(\mathbf{x}).
 $$
 
 $c_r$ is the firing-weighted fraction of attacks among the events the rule covers. $s_r$ is its
@@ -221,12 +232,13 @@ with ties resolved toward the smaller $z$.
 
 - $s_r\ge s_{\min}=0.005$. A rule that almost never fires cannot influence $AC$, but it still
   enlarges the search space.
-- $|c_r-\pi|\ge m=0.15$†, where $\pi$ is the training attack prior. A rule whose confidence is
-  close to the prior is no more predictive than the base rate, and would only dilute the
-  weighted average.
+- $|c_r-0.5|\ge m=0.15$. A rule whose confidence is close to 0.5 fires about equally on
+  attack and benign events, and would only dilute the weighted average. A kept rule has
+  $c_r\le0.35$ or $c_r\ge0.65$, so no kept rule receives $z=50$.
 
-The margin is measured from $\pi$, not from 0.5. At $\pi\approx0.21$, a 0.5-centred margin
-would retain rules that fire uniformly on all events.
+The margin is measured from 0.5, not from the training attack prior $\pi\approx0.21$. A
+rule whose confidence equals the prior therefore counts as benign evidence (it is kept when
+$c_r\le0.35$); a prior-centred margin is evaluated as an ablation (Table A.5).
 
 **Generated rules only.** Every rule in the pool is generated from the training partition,
 with a data-assigned consequent. Each antecedent appears in the pool once. The pool contains
@@ -268,11 +280,7 @@ constraint violation.
 - Uniform crossover ($p=0.9$) and bit-flip mutation with probability $1/|P|$ per bit.
 - Duplicate elimination.
 
-**Fitness sample** (line 6). Fitness is evaluated on a 40,000-event training sample. It is drawn
-without replacement from every stratum (scenario × deployment × attacker count × execution),
-in proportion to stratum size and with at least one event per stratum.
-
-**Computational cost** (line 7). The firing strengths of all candidates on the fitness sample are
+**Computational cost** (lines 6–7). The firing strengths of all candidates on the fitness sample are
 computed once. Each evaluation then reduces to a masked weighted sum, which keeps a run
 tractable. A single run takes **[TBD]** minutes on **[TBD: hardware]**.
 
@@ -285,7 +293,7 @@ $(f_1,f_2,f_3)$. An objective that is constant across the front contributes zero
 preference-weighted choice, not a geometric knee point [8]. Test data are never used.
 
 **Deployed base.** The deployed base is produced by running Algorithm A.1 on the full
-development corpus with seed 42†. Its size is whatever that run selects, within
+development corpus with seed 42† **[TBD: not yet implemented in the code]**. Its size is whatever that run selects, within
 $12\le|S|\le35$. The base is exported automatically as integer C code in the form of A.1.3,
 with no manual transcription. It is listed in Table A.4 and released as a machine-readable file
 with the code **[TBD: link]**.
@@ -418,8 +426,9 @@ accounts for this.
 | Variant | P2 $F_1$ / FPR | P3 $F_1$ / FPR | P4 $F_1$ / FPR | NF$_1$ / NF$_0$ |
 |---|---|---|---|---|
 | CARS (as specified) | [TBD] | [TBD] | [TBD] | [TBD] |
-| 0.5-centred confidence margin | [TBD] | [TBD] | [TBD] | [TBD] |
-| Pre-activation events excluded | [TBD] | [TBD] | [TBD] | [TBD] |
+| Prior-centred confidence margin ($\lvert c_r-\pi\rvert\ge m$) | [TBD] | [TBD] | [TBD] | [TBD] |
+| Pre-$t_a$ attacker events labelled benign instead of removed | [TBD] | [TBD] | [TBD] | [TBD] |
+| Per-attacker activation time instead of fixed $t_a=300$ s | [TBD] | [TBD] | [TBD] | [TBD] |
 | Floating-point instead of integer evaluation | [TBD] | [TBD] | [TBD] | [TBD] |
 
 ## A.7 Reproducibility
@@ -433,11 +442,12 @@ accounts for this.
 | Detection threshold $\tau$ | 65 |
 | Enumeration bound | ≤ 4 antecedent terms |
 | Wang–Mendel cells | 200 most frequent |
-| Pruning | $s_{\min}=0.005$; $m=0.15$† (margin from prior $\pi$) |
+| Labelling | $y=1$ iff observed node is an attacker and $t\ge t_a=300$ s; attacker-reported events and pre-$t_a$ attacker events removed |
+| Pruning | $s_{\min}=0.005$; $\lvert c_r-0.5\rvert\ge m=0.15$ |
 | Rule bounds | $12\le\lvert S\rvert\le35$ |
 | NSGA-II | pop 150, 250 generations, uniform crossover 0.9, bit-flip $1/\lvert P\rvert$, duplicate elimination |
 | Initial population | random subsets at ≈2% density (no seed base) |
-| Fitness sample | 40,000 events, stratified by scenario × deployment × attackers × execution |
+| Fitness sample $D_s$ | 40,000 events, stratified by scenario × deployment × attackers × execution; used for pool generation, consequents, pruning and fitness |
 | Solution choice | weights (0.6, 0.3, 0.1) on min–max-normalised $(f_1,f_2,f_3)$ |
 | Search seeds | $R=$ **[TBD, ≥5]**; deployment run seed 42† |
 | Split seed (P1) | 42 |
