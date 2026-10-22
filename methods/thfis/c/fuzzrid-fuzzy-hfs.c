@@ -30,6 +30,7 @@
  */
 
 #include <stdint.h>
+#include "fuzzrid-fuzzy-hfs.h"
 
 /* ---- membership functions: identical family to fuzzrid-fuzzy.c ---- */
 /* Low : 100 on [0,20], linear to 0 at 50                               */
@@ -133,22 +134,29 @@ static uint8_t infer_top(uint8_t ra, uint8_t si, uint8_t cx)
 
 /* ---- Public entry point: the fuzzrid-fuzzy.c seam ------------------ */
 
-uint8_t fuzzrid_fuzzy_infer_ac_hfs(const uint8_t v[7])
+uint8_t
+fuzzrid_fuzzy_infer_ac_hfs(uint8_t v1, uint8_t v2, uint8_t v3, uint8_t v4,
+                           uint8_t v5, uint8_t v6, uint8_t v7)
 {
-  uint8_t ra = infer_ra(v[0], v[2], v[3]); /* v1, v3, v4 */
-  uint8_t si = infer_si(v[1], v[4]);       /* v2, v5     */
-  uint8_t cx = infer_cx(v[5], v[6]);       /* v6, v7     */
+  uint8_t ra = infer_ra(v1, v3, v4);
+  uint8_t si = infer_si(v2, v5);
+  uint8_t cx = infer_cx(v6, v7);
   return infer_top(ra, si, cx);
 }
 
 /* Optional: expose intermediates for logging/explainability
  * ([HFS] ra=.. si=.. cx=.. ac=..) so parse_serial.py can extract the
  * per-branch attribution -- a strong explainability figure for Sec. 6. */
-void fuzzrid_fuzzy_infer_ac_hfs_x(const uint8_t v[7], uint8_t *ra,
-                                  uint8_t *si, uint8_t *cx, uint8_t *ac)
+uint8_t
+fuzzrid_fuzzy_infer_ac_hfs_x(uint8_t v1, uint8_t v2, uint8_t v3, uint8_t v4,
+                             uint8_t v5, uint8_t v6, uint8_t v7,
+                             uint8_t *ra_out, uint8_t *si_out, uint8_t *cx_out)
 {
-  *ra = infer_ra(v[0], v[2], v[3]);
-  *si = infer_si(v[1], v[4]);
-  *cx = infer_cx(v[5], v[6]);
-  *ac = infer_top(*ra, *si, *cx);
+  uint8_t ra = infer_ra(v1, v3, v4);
+  uint8_t si = infer_si(v2, v5);
+  uint8_t cx = infer_cx(v6, v7);
+  if(ra_out) *ra_out = ra;
+  if(si_out) *si_out = si;
+  if(cx_out) *cx_out = cx;
+  return infer_top(ra, si, cx);
 }

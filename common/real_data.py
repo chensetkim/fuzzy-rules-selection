@@ -18,7 +18,7 @@ leading space, to "static"; _parse_path still tolerates the old name):
 Each CSV has the schema written by parse_serial.py:
     sim_ms,mote_id,src,R,Rhat,e,v1..v7,AC,ML,t,type,action
 
-Labelling convention (same as common/data.py / compute_metrics.py):
+Labelling convention (same as compute_metrics.py):
     y = 1  iff  src in attacker set for that file's atkcount  AND  t >= atk_start_s
     y = 0  otherwise
 Rows observed BY an attacker mote (mote_id in attacker set) are dropped
@@ -27,8 +27,7 @@ before the attack launches (t < atk_start_s) are dropped rather than
 labelled benign (avoids injecting label noise from "attacker behaving
 honestly pre-launch").
 
-Unlike common/data.py (single atk_nodes for a whole directory), this
-loader determines atk_nodes per-file from the atkcount path segment, since
+This loader determines atk_nodes per-file from the atkcount path segment, since
 data/processed mixes 3/6/9-attacker runs together.
 """
 from __future__ import annotations
@@ -154,9 +153,8 @@ def features_labels(ev: pd.DataFrame):
 def stratified_scenario_split(ev: pd.DataFrame, test_frac: float = 0.3,
                               seed: int = 42):
     """Chronologically-shuffled split within each S1..S6 scenario, pooling
-    all env/round/atkcount combinations on both sides (matches the
-    common/data.py convention: all six attack variants appear in both
-    train and test)."""
+    all env/round/atkcount combinations on both sides, so all six attack
+    variants appear in both train and test."""
     rng = np.random.default_rng(seed)
     tr_idx, te_idx = [], []
     for _, grp in ev.groupby("scenario"):

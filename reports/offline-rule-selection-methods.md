@@ -352,7 +352,7 @@ Final pool on the real corpus: **78 candidates, 25 of them hand-crafted**.
 - **Seeding.** Same scheme, with the 25 hand-crafted rules as individual 0 and a 5 % random density.
 
 **Export.** `export_c_hfs` emits four chained Sugeno blocks. The deployable firmware is
-[`methods/thfis/c/fuzzrid-fuzzy-hfs.root-copy.c`](../methods/thfis/c/fuzzrid-fuzzy-hfs.root-copy.c). It is enabled by `-DWITH_THFIS=1`
+[`methods/thfis/c/fuzzrid-fuzzy-hfs.c`](../methods/thfis/c/fuzzrid-fuzzy-hfs.c). It is enabled by `-DWITH_THFIS=1`
 ([`reports/thfis-implement.md`](thfis-implement.md)).
 
 ### 4.4 T-HFIS results

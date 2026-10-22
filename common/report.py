@@ -59,12 +59,8 @@ def pareto_table(masks, F, pool, y_tr, W_te, y_te, ac_thr, names):
 def rules_listing(mask, pool):
     lines = []
     for j in np.nonzero(mask)[0]:
-        if not pool["expert_mask"][j]:
-            tag = "[generated]"
-        elif "G" in pool["names"][j]:     # generated, same antecedent as an expert rule
-            tag = "[gen=expert]"
-        else:                             # injected expert rule (include_expert=True)
-            tag = "[expert]"
+        # [gen=expert]: generated rule with the same antecedent as an R1-R18 rule
+        tag = "[gen=expert]" if pool["expert_mask"][j] else "[generated]"
         lines.append(f"{pool['names'][j]:>14} {tag:11} "
                      f"{rule_str(pool['antecedents'][j], pool['z'][j])}   "
                      f"(support={pool['support'][j]:.3f}, conf={pool['conf'][j]:.2f})")

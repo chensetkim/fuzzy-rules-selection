@@ -1,5 +1,7 @@
 # Code Dictionary — rule-selection pipeline
 
+> **Note (2026-10-22).** The single-directory pipeline this document walks through (`run_selection.py`, `data.py`, `make_synth.py`, `run_full_process.sh`, `run_selection.sh` and the sample data in `data/samples/`) has been removed; it is in git history up to commit `a29a0a0`. The current pipeline (`./run_cars.sh`, §14) reuses the same `fuzzy.py`, `candidates.py`, `optimize.py` and `report.py`, with `common/real_data.py` as the loader. Since then: no expert rules are injected into the pool or the initial population, the rule budget is 12–35, and the High MF is 50→80.
+
 Per-file walkthroughs of `methods/cars/`. `README.md` describes *what the pipeline
 does*; this file describes *how each script works and why it makes the choices
 it makes*. One section per file, added as they are documented.

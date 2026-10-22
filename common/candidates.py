@@ -22,10 +22,9 @@ and z_r = the singleton in {0,25,50,75,100} nearest to 100*conf(r).
 Pruning keeps rules with support >= min_support and |conf-0.5| >= margin
 (rules that cannot discriminate carry no selective value).
 
-The pool is purely data-driven by default: the expert base R1-R18 is NOT
-injected. expert_mask then flags generated rules whose antecedent equals
-an R1-R18 antecedent (reporting only). include_expert=True restores the
-old behaviour: R1-R18 merged into the pool with firmware consequents.
+The pool is purely data-driven: the expert base R1-R18 is never added.
+expert_mask flags generated rules whose antecedent equals an R1-R18
+antecedent; it is used for overlap reporting only.
 """
 
 from __future__ import annotations
@@ -77,7 +76,6 @@ def build_pool(X: np.ndarray, y: np.ndarray, mf: MFConfig,
                min_support: float = 0.005,
                conf_margin: float = 0.15,
                wm_max_rules: int = 200,
-               include_expert: bool = False,
                verbose: bool = True):
     """Returns dict with antecedents (P,7), z (P,), conf, support, names,
     expert_mask (bool P,), and the precomputed firing matrix W (n,P)."""
@@ -101,36 +99,15 @@ def build_pool(X: np.ndarray, y: np.ndarray, mf: MFConfig,
     src = [s for s, k in zip(src, keep) if k]
     W = W[:, keep]
     names = [f"G{i+1}({s})" for i, s in enumerate(src)]
-    expert_mask = np.zeros(len(ants), dtype=bool)
-    e_ants, e_z, e_names = expert_arrays()
-
-    if not include_expert:
-        # No injection: only mark generated rules that match an expert
-        # antecedent, so overlap_stats still measures agreement with R1-R18.
-        expert_mask = np.array([any((ea == a).all() for ea in e_ants) for a in ants],
-                               dtype=bool)
-    else:
-        # Drop generated duplicates of expert rules (same antecedent);
-        # expert copy wins so consequents stay firmware-faithful.
-        dup = np.array([any((ea == a).all() for ea in e_ants) for a in ants])
-        ants, z, conf, support = ants[~dup], z[~dup], conf[~dup], support[~dup]
-        names = [n for n, d in zip(names, dup) if not d]
-        W = W[:, ~dup]
-        expert_mask = expert_mask[~dup]
-
-        e_W = firing_matrix(M, e_ants)
-        e_conf, e_support, _ = assign_consequents(e_W, y)
-        ants = np.concatenate([ants, e_ants])
-        z = np.concatenate([z, e_z])
-        conf = np.concatenate([conf, e_conf])
-        support = np.concatenate([support, e_support])
-        W = np.concatenate([W, e_W], axis=1)
-        names += e_names
-        expert_mask = np.concatenate([expert_mask, np.ones(len(e_ants), dtype=bool)])
+    # Mark generated rules that match an expert antecedent, so overlap_stats
+    # can measure agreement with R1-R18. Nothing is added to the pool.
+    e_ants, _, _ = expert_arrays()
+    expert_mask = np.array([any((ea == a).all() for ea in e_ants) for a in ants],
+                           dtype=bool)
 
     if verbose:
         print(f"[pool] enumerated={len(ants_enum)}  wang-mendel={len(ants_wm)}  "
-              f"after pruning{'+expert merge' if include_expert else ''}={len(ants)} candidates "
-              f"({int(expert_mask.sum())} {'expert' if include_expert else 'match an expert antecedent'})")
+              f"after pruning={len(ants)} candidates "
+              f"({int(expert_mask.sum())} match an expert antecedent)")
     return dict(antecedents=ants, z=z, conf=conf, support=support,
                 names=names, expert_mask=expert_mask, W=W)

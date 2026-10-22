@@ -16,17 +16,17 @@ Per-unit candidate pools
   CX  inputs (v6,v7)     -- full enumeration, <=2 terms (15 candidates)
   TOP inputs (RA,SI,CX)  -- full enumeration, <=3 terms (63 candidates),
                             built against a REFERENCE ra/si/cx signal
-                            (the fixed hand-crafted RA_RULES/SI_RULES/
-                            CX_RULES run with ALL rules on) so the TOP
+                            (the data-driven RA/SI/CX pools above run
+                            with ALL their rules on) so the TOP
                             pool's antecedent grid and Ishibuchi
                             consequents are stable and don't have to be
                             re-derived inside the optimisation loop.
 Consequents assigned the same way as candidates.py: certainty grade
 conf(r) = sum_{y=1} w_r / sum w_r, snapped to {0,25,50,75,100}, pruned by
-min support and |conf-0.5| margin. By default the hand-crafted
-RA/SI/CX/TOP rules from hierarchy.py are NOT injected; expert_mask flags
-generated rules whose antecedent equals a hand-crafted one (reporting
-only). include_expert=True merges them in, as the flat pool can.
+min support and |conf-0.5| margin. The hand-crafted RA/SI/CX/TOP rules
+from hierarchy.py are never added to the pools; expert_mask flags
+generated rules whose antecedent equals a hand-crafted one (overlap
+reporting only).
 
 Joint optimisation
 -------------------
@@ -89,7 +89,7 @@ def build_unit_pool(X_local: np.ndarray, y: np.ndarray, mf: MFConfig,
                     hand_rules: list, unit_tag: str,
                     max_terms: int | None = None,
                     min_support: float = 0.01, conf_margin: float = 0.15,
-                    include_expert: bool = False, verbose: bool = True):
+                    verbose: bool = True):
     """hand_rules: list of (name, antecedent_tuple, z, note) as in
     hierarchy.py's RA_RULES/SI_RULES/CX_RULES/TOP_RULES."""
     n_features = X_local.shape[1]
@@ -104,38 +104,15 @@ def build_unit_pool(X_local: np.ndarray, y: np.ndarray, mf: MFConfig,
     ants, z, conf, support = ants[keep], z[keep], conf[keep], support[keep]
     W = W[:, keep]
     names = [f"{unit_tag}G{i+1}" for i in range(len(ants))]
-    expert_mask = np.zeros(len(ants), dtype=bool)
 
+    # Mark generated rules matching a hand-crafted antecedent (reporting only).
     e_ants = np.array([r[1] for r in hand_rules], dtype=np.int8)
-    e_z = np.array([r[2] for r in hand_rules], dtype=np.float64)
-    e_names = [r[0] for r in hand_rules]
-
-    dup = (np.array([any((ea == a).all() for ea in e_ants) for a in ants])
-          if len(ants) else np.zeros(0, dtype=bool))
-
-    if not include_expert:
-        # No injection: mark generated rules matching a hand-crafted antecedent.
-        expert_mask = dup
-    else:
-        ants, z, conf, support = ants[~dup], z[~dup], conf[~dup], support[~dup]
-        names = [n for n, d in zip(names, dup) if not d]
-        W = W[:, ~dup]
-        expert_mask = expert_mask[~dup]
-
-        e_W = firing_matrix(M, e_ants)
-        e_conf, e_support, _ = assign_consequents(e_W, y)
-        ants = np.concatenate([ants, e_ants])
-        z = np.concatenate([z, e_z])
-        conf = np.concatenate([conf, e_conf])
-        support = np.concatenate([support, e_support])
-        W = np.concatenate([W, e_W], axis=1)
-        names += e_names
-        expert_mask = np.concatenate([expert_mask, np.ones(len(e_ants), dtype=bool)])
+    expert_mask = (np.array([any((ea == a).all() for ea in e_ants) for a in ants], dtype=bool)
+                   if len(ants) else np.zeros(0, dtype=bool))
 
     if verbose:
-        kind = "expert" if include_expert else "match a hand-crafted antecedent"
-        print(f"[pool:{unit_tag}] {len(ants)} candidates ({int(expert_mask.sum())} {kind}, "
-              f"{len(hand_rules)} hand-crafted rules)")
+        print(f"[pool:{unit_tag}] {len(ants)} candidates ({int(expert_mask.sum())} match a "
+              f"hand-crafted antecedent, {len(hand_rules)} hand-crafted rules)")
     return dict(antecedents=ants, z=z, conf=conf, support=support, names=names,
                expert_mask=expert_mask, W=W, n_features=n_features, tag=unit_tag)
 
@@ -143,8 +120,10 @@ def build_unit_pool(X_local: np.ndarray, y: np.ndarray, mf: MFConfig,
 def build_all_pools(X: np.ndarray, y: np.ndarray, mf: MFConfig,
                     min_support: float = 0.01, conf_margin: float = 0.15):
     """X: (n,7) raw v1..v7. Layer-1 pools built from raw features; the TOP
-    pool is built from a REFERENCE ra/si/cx computed with the full
-    hand-crafted hierarchy (all RA/SI/CX rules on)."""
+    pool is built from a REFERENCE ra/si/cx computed with every rule of
+    the data-driven layer-1 pools on (no hand-crafted rules involved).
+    The hand-crafted rule lists are passed only to flag matching
+    antecedents for overlap reporting."""
     ra_pool = build_unit_pool(X[:, RA_IN], y, mf, RA_RULES, "A",
                               min_support=min_support, conf_margin=conf_margin)
     si_pool = build_unit_pool(X[:, SI_IN], y, mf, SI_RULES, "B",
@@ -152,8 +131,9 @@ def build_all_pools(X: np.ndarray, y: np.ndarray, mf: MFConfig,
     cx_pool = build_unit_pool(X[:, CX_IN], y, mf, CX_RULES, "C",
                               min_support=min_support, conf_margin=conf_margin)
 
-    ref = THFIS(mf)
-    ra_ref, si_ref, cx_ref = ref.intermediates(X)
+    ra_ref = sugeno_ac(ra_pool["W"], ra_pool["z"])
+    si_ref = sugeno_ac(si_pool["W"], si_pool["z"])
+    cx_ref = sugeno_ac(cx_pool["W"], cx_pool["z"])
     Xtop_ref = np.stack([ra_ref, si_ref, cx_ref], axis=1)
     top_pool = build_unit_pool(Xtop_ref, y, mf, TOP_RULES, "T",
                                min_support=min_support, conf_margin=conf_margin)
@@ -248,32 +228,19 @@ class HFSSelectionProblem(Problem):
         out["F"], out["G"] = F, G
 
 
-def seeded_population_hfs(pool_size: int, pop_size: int, expert_mask: np.ndarray,
-                          seed: int = 42, init_density: float = 0.05,
-                          seed_expert: bool = False):
+def random_population_hfs(pool_size: int, pop_size: int, seed: int = 42,
+                          init_density: float = 0.05):
     rng = np.random.default_rng(seed)
-    P = (rng.random((pop_size, pool_size)) < init_density)
-    if not seed_expert:
-        return P
-    P[0] = expert_mask.copy()
-    for i in range(1, min(10, pop_size)):
-        v = expert_mask.copy()
-        flips = rng.integers(0, pool_size, size=3)
-        v[flips] = ~v[flips]
-        P[i] = v
-    return P
+    return rng.random((pop_size, pool_size)) < init_density
 
 
 def run_nsga2_hfs(ra_pool, si_pool, cx_pool, top_pool, y, mf,
                   ac_thr: float = 65.0, max_rules: int = 35, min_rules: int = 12,
-                  pop_size: int = 150, n_gen: int = 250, seed: int = 42,
-                  seed_expert: bool = False):
+                  pop_size: int = 150, n_gen: int = 250, seed: int = 42):
     problem = HFSSelectionProblem(ra_pool, si_pool, cx_pool, top_pool, y, mf,
                                   ac_thr=ac_thr, max_rules=max_rules,
                                   min_rules=min_rules)
-    expert_mask = joint_expert_mask(ra_pool, si_pool, cx_pool, top_pool)
-    init = seeded_population_hfs(problem.n_var, pop_size, expert_mask, seed=seed,
-                                 seed_expert=seed_expert)
+    init = random_population_hfs(problem.n_var, pop_size, seed=seed)
     algo = NSGA2(pop_size=pop_size, sampling=init.astype(bool),
                 crossover=UniformCrossover(prob=0.9),
                 mutation=BitflipMutation(prob=1.0, prob_var=1.0 / problem.n_var),
@@ -341,12 +308,8 @@ def _unit_listing(pool, mask, unit_key):
     names = UNIT_INPUT_NAMES[unit_key]
     lines = []
     for j in np.nonzero(mask)[0]:
-        if not pool["expert_mask"][j]:
-            tag = "[generated]"
-        elif "G" in pool["names"][j]:     # generated, same antecedent as an expert rule
-            tag = "[gen=expert]"
-        else:                             # injected expert rule (include_expert=True)
-            tag = "[expert]"
+        # [gen=expert]: generated rule with the same antecedent as a hand-crafted rule
+        tag = "[gen=expert]" if pool["expert_mask"][j] else "[generated]"
         lines.append(f"  {pool['names'][j]:>8} {tag:11} "
                      f"{rule_str_named(pool['antecedents'][j], pool['z'][j], names)}  "
                      f"(support={pool['support'][j]:.3f}, conf={pool['conf'][j]:.2f})")

@@ -3,7 +3,7 @@
 parse_serial.py -- Cooja serial log -> rule-selection event CSV
 ===============================================================
 Converts one captured Cooja simulation log into one schema-conformant
-events CSV for run_selection.py.
+events CSV for the rule-selection pipeline (common/real_data.py).
 
 Expected input: the output of the Cooja simulation script
 
@@ -14,12 +14,13 @@ i.e. one line per serial write, "<time> <mote_id> <serial text>", where the
 serial text carries the firmware's per-detection marker line (see EVT below).
 
 Usage:
-    python3 parse_serial.py sim.log ../data/samples/sample_csv/S1_decrease_jump_run1.csv \\
-        [--time-unit us|ms] [--atk-nodes 5,6,7,8,9,10]
+    python3 parse_serial.py <sim>.log <out>.csv \\
+        [--time-unit us|ms] [--atk-nodes 29,30,31]
+    (scripts/parse_serial.sh runs this for every log in a folder)
 
-The output schema is fixed by data.py:
+The output schema is fixed by common/real_data.py:
     sim_ms,mote_id,src,R,Rhat,e,v1..v7,AC,ML,t,type,action
-Of these, data.py reads only type, mote_id, src, t and v1..v7; the rest are
+Of these, real_data.py reads only type, mote_id, src, t and v1..v7; the rest are
 carried for traceability (AC is the firmware's own inference output, which is
 what lets you cross-check fuzzy.py against the deployed implementation).
 
@@ -86,7 +87,7 @@ def parse(log_path, time_unit="us", dedup=True):
                "Rhat": int(d["Rhat"]), "e": int(d["e"]),
                **{k: int(d[k]) for k in V},
                "AC": int(d["AC"]), "ML": int(d["ML"]),
-               "t": sim_ms // 1000,        # SECONDS -- data.py compares against it
+               "t": sim_ms // 1000,        # SECONDS -- real_data.py compares against it
                "type": "detection", "action": ""}
 
         if dedup:

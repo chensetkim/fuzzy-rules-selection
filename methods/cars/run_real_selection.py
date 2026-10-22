@@ -5,7 +5,7 @@ run_real_selection.py -- Flat NSGA-II rule selection on the real data/processed 
 Wraps the existing candidates.py / optimize.py / report.py machinery around
 common/real_data.py (which understands the real mobile+static / r1-r3 / 3-6-9
 attacker-count layout, dedupes the byte-identical static repetitions, and
-labels every event) instead of the single-atk_nodes common/data.py loader.
+labels every event).
 
 Two runs are produced:
 

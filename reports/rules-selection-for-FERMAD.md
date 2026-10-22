@@ -1,5 +1,7 @@
 # Offline Fuzzy Rule Selection for FERMAD — Technical Reference
 
+> **Note (2026-10-22).** The single-directory pipeline this document walks through (`run_selection.py`, `data.py`, `make_synth.py`, `run_full_process.sh`, `run_selection.sh` and the sample data in `data/samples/`) has been removed; it is in git history up to commit `a29a0a0`. The current pipeline (`./run_cars.sh`, §14) reuses the same `fuzzy.py`, `candidates.py`, `optimize.py` and `report.py`, with `common/real_data.py` as the loader. Since then: no expert rules are injected into the pool or the initial population, the rule budget is 12–35, and the High MF is 50→80.
+
 Complete technical description of the pipeline driven by `rs/run_selection.py`, the
 justification for each design decision, and the literature each decision rests on.
 
@@ -876,8 +878,9 @@ simulation with COOJA," in *31st IEEE Conference on Local Computer Networks (LCN
 ## 14. How to run the CARS code
 
 All CARS code is in `methods/cars/` (shared modules in `common/`). It needs Python 3 with `numpy`, `pandas` and `pymoo`.
-The project venv at the repo root (`.venv/`) already has them. Commands in §14.3 and
-§14.4 must be run **from the repo root** (`fuzzy-rules-selection/`), because their
+The project venv at the repo root (`.venv/`) already has them. The simplest way to run
+everything is `./run_cars.sh` (settings in `config.sh`). The commands in §14.3
+must be run **from the repo root** (`fuzzy-rules-selection/`), because their
 default paths (`data/processed`, `outputs/cars`) are relative to it. The shell
 scripts `cd` into their own folder, so they can be run from anywhere.
 
@@ -959,34 +962,7 @@ Runtime is dominated by NSGA-II. Use smaller `--pop` or `--gens` for a quick che
 > ⚠️ `finalize_selection.py` picks by **test** F1 (§7.1 applies only to the knee pick). Report
 > the knee-point numbers (`selected_rules.txt`) as the clean held-out result.
 
-### 14.4 Alternative: the original single-directory pipeline (§2–§10)
-
-This is the pipeline this document describes step by step. It reads one flat folder of CSVs
-named `<SCENARIO>_<anything>.csv`:
-
-```bash
-./methods/cars/run_selection.sh                         # data/samples/sample_csv/ -> outputs/cars/synthetic/
-# equivalent to:
-cd methods/cars
-python3 run_selection.py ../../data/samples/sample_csv/ ../../outputs/cars/synthetic/ \
-    --atk-nodes 5,6,7,8,9,10 --atk-start-s 300 --ac-thr 65
-```
-
-End-to-end from a single Cooja log. It auto-detects the attackers and attack start, then
-parses and selects:
-
-```bash
-./methods/cars/run_full_process.sh /path/to/sim.log     # -> outputs/cars/runs/<log-name>/{csv,selection}/
-SEEDS="1 2 3 4 5" GENS=400 ./methods/cars/run_full_process.sh /path/to/sim.log
-```
-
-For a smoke test on synthetic data:
-
-```bash
-cd methods/cars && python3 ../../common/make_synth.py && python3 run_selection.py synth_csv out/
-```
-
-### 14.5 Outputs and deploying the result
+### 14.4 Outputs and deploying the result
 
 Each output folder contains `pareto_front.csv`, `selected_rules.txt`, `selected_rules.c`
 and `overlap_report.txt` (§7.2). To deploy:
