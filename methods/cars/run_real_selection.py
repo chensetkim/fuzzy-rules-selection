@@ -57,7 +57,8 @@ def run_one(tag, ev_train, ev_test, out_dir, mf, args, note=""):
     M_te = mf.memberships(X_te)
     W_te = firing_matrix(M_te, pool["antecedents"])
     exp_mask = pool["expert_mask"]
-    ac_exp = sugeno_ac(W_te, pool["z"], subset=exp_mask)
+    # Baseline = the real R1-R18 base, independent of what the pool contains.
+    ac_exp = sugeno_ac(firing_matrix(M_te, e_ants), e_z)
     f1_e, fpr_e, cm_e = f1_fpr(ac_exp, y_te, args.ac_thr)
     print(f"[{tag}] expert R1-R18 on this test: F1={f1_e:.4f} FPR={fpr_e:.4f} "
           f"recall={cm_e['recall']:.4f} precision={cm_e['precision']:.4f}")

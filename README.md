@@ -41,6 +41,11 @@ archive/          old/unused files kept for reference
 
 ## Running
 
+**CARS, start to end:** `./run_cars.sh` (check → select → LOSO → finalize → SUMMARY.md, into
+a new `outputs/cars/run_<date>_<time>/`). `QUICK=1 ./run_cars.sh` is a ~1 min smoke test,
+`SEEDS="1 2 3 4 5" ./run_cars.sh` a multi-seed run, `--parse` rebuilds the CSVs from the logs,
+and `./run_cars.sh -h` lists all settings. The individual steps below remain available.
+
 Python commands are run **from the repo root**; their default paths (`data/processed`,
 `outputs/<method>`) are relative to it. Shell scripts `cd` into their own folder and can be
 run from anywhere.
