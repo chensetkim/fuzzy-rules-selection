@@ -1,0 +1,7 @@
+# Attacker mote IDs per attacker count (the 4th field of the file name,
+# e.g. 3-1-21-9-150-... -> 9 attackers). Taken from the "Starting 2H-FuzzRID
+# attacker" boot lines in the logs; identical in every round and environment.
+# common/real_data.py uses the same mapping (ATK_NODES_BY_COUNT).
+3: 29,30,31
+6: 26,27,28,29,30,31
+9: 23,24,25,26,27,28,29,30,31
