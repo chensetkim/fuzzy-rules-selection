@@ -15,13 +15,11 @@ is part of the reason for choosing CARS.
 > Naming: the IDS was renamed from 2H-FuzzRID to EF-RMAD, and then to **FERMAD**. Code identifiers
 > (`fuzzrid_fuzzy_infer_ac`, `FUZZRID_TAU_Q_PCT`, …) still use the old name.
 
-> **Status (2026-10-22).** §1–§4 and §6–§7 describe the current code. The method changed on
-> 2026-10-22: no expert rules are injected into any pool or initial population, the rule
-> budget is 12–35, High is 0 at 50 → 1 at 80, and rules are scored with the mote's integer
-> arithmetic. **The numbers in §3.7, §4.4 and §5 are legacy results** made with the old
-> settings (expert-seeded, 12–29 rules, High 60–90, float scoring; files in
-> `outputs/legacy_2026-09/`). They will be replaced after new `./run_cars.sh` /
-> `./run_thfis.sh` runs.
+> **Status (2026-10-22).** This report describes the current code. Since 2026-10-22 both
+> methods are purely data-driven: no hand-crafted rules exist anywhere in the code (not in
+> any pool, initial population or baseline). The rule budget is 12–35, High is 0 at 50 → 1
+> at 80, and rules are scored with the mote's integer arithmetic. Results (§3.7, §4.4) are
+> pending new `./run_cars.sh` / `./run_thfis.sh` runs.
 
 ---
 
@@ -91,7 +89,7 @@ A rule is a pair $(A_r, z_r)$:
 - $A_r$ is a 7-tuple over $\{0,1,2,3\}$ = {don't-care, L, M, H}.
 - $z_r \in \{0,25,50,75,100\}$ is a singleton consequent (VL, L, M, H, VH).
 
-Example: R3 = `(0,0,0,H,0,L,0) → 75` reads "IF $v_4$ is High AND $v_6$ is Low THEN AC is High".
+Example: `(0,0,0,H,0,L,0) → 75` reads "IF $v_4$ is High AND $v_6$ is Low THEN AC is High".
 
 ### 2.3 Firing strength and defuzzification
 
@@ -152,24 +150,24 @@ $$y=1 \iff src\in\text{attackers} \;\wedge\; t\ge 300\,\text{s (attack launch)}$
 
 Two generators feed one pool. They complement each other.
 
-**Generator A: Wang–Mendel-style cell rules** (`wang_mendel_antecedents`, [`candidates.py:38`](../common/candidates.py#L38)).
+**Generator A: Wang–Mendel-style cell rules** (`wang_mendel_antecedents`, [`candidates.py:36`](../common/candidates.py#L36)).
 
 - Each training sample is assigned to its strongest term per feature (argmax membership), which gives one full 7-term antecedent.
 - The unique cells are ranked by occupancy and capped at 200.
 - This anchors the pool in the regions of the $3^7$ grid that the data actually occupies.
 - It deviates from textbook Wang–Mendel: there is no rule degree, and conflicts are resolved by the consequent step below.
 
-**Generator B: bounded enumeration** (`enumerate_antecedents`, [`candidates.py:51`](../common/candidates.py#L51)).
+**Generator B: bounded enumeration** (`enumerate_antecedents`, [`candidates.py:49`](../common/candidates.py#L49)).
 
 - It generates every antecedent that specifies 1 to 4 features:
 
 $$\sum_{k=1}^{4}\binom{7}{k}3^k = 21+189+945+2835 = 3990 \text{ rules}$$
 
-- This generator is needed because Wang–Mendel rules always use all 7 features, while R1–R18 use 1–5.
-- Without it, short, readable rules like those of R1–R18 could not be reached.
+- This generator is needed because Wang–Mendel rules always use all 7 features.
+- Without it, short, readable rules (1–4 terms) could not be reached.
 - The 4-term cap is an interpretability limit.
 
-**Consequent assignment: Ishibuchi certainty grade** (`assign_consequents`, [`candidates.py:63`](../common/candidates.py#L63)). The training set is used for this:
+**Consequent assignment: Ishibuchi certainty grade** (`assign_consequents`, [`candidates.py:61`](../common/candidates.py#L61)). The training set is used for this:
 
 $$
 \mathrm{conf}(r)=\frac{\sum_{x:y=1}w_r(x)}{\sum_x w_r(x)},\qquad
@@ -179,7 +177,7 @@ $$
 
 Confidence is the firing-weighted share of attack samples the rule covers. Support is the rule's mean firing strength.
 
-**Pruning** ([`candidates.py:97`](../common/candidates.py#L97)). A candidate is kept only if both conditions hold:
+**Pruning** ([`candidates.py:95`](../common/candidates.py#L95)). A candidate is kept only if both conditions hold:
 
 $$\mathrm{supp}(r)\ge 0.005 \quad\text{and}\quad |\mathrm{conf}(r)-0.5|\ge 0.15$$
 
@@ -187,10 +185,9 @@ $$\mathrm{supp}(r)\ge 0.005 \quad\text{and}\quad |\mathrm{conf}(r)-0.5|\ge 0.15$
 - The confidence margin removes rules that fire equally on attacks and benign traffic. Such rules carry no information and only dilute the weighted average.
 - Side effect: a kept rule has conf ≤ 0.35 or ≥ 0.65, so **no selected rule can get $z=50$**.
 
-**No hand-crafted rules.** The pool is purely data-driven: R1–R18 are never added to it,
-and the code no longer contains R1–R18 at all (no built-in baseline, no overlap report).
-The pool size is printed in each run's `select.log` (legacy run: 701 candidates, of
-which 18 were injected expert rules).
+**No hand-crafted rules.** The pool is purely data-driven, and the code contains no
+hand-crafted rule base at all (no injection, no baseline, no overlap report). The pool
+size is printed in each run's `select.log`.
 
 ### 3.3 Multi-objective subset selection ([`optimize.py`](../common/optimize.py))
 
@@ -218,7 +215,7 @@ which 18 were injected expert rules).
 
 **Random initial population** (`random_population`, [`optimize.py:76`](../common/optimize.py#L76)):
 every individual is a sparse random subset (each rule on with probability 0.02). No
-expert base is seeded, so the search is not anchored on R1–R18.
+rule base is seeded.
 
 ### 3.4 Picking one base from the Pareto front
 
@@ -246,7 +243,7 @@ NSGA-II returns a front of non-dominated bases. Two pickers exist:
 | `selected_rules.txt` | chosen base, human-readable, with per-rule support and confidence |
 | `selected_rules.c` | same base as the rule block of `fuzzrid_fuzzy_infer_ac()` |
 
-`export_c` ([`report.py:70`](../common/report.py#L70)) emits one line per rule, with nested
+`export_c` ([`report.py:53`](../common/report.py#L53)) emits one line per rule, with nested
 `min2()` for multi-term antecedents. It then emits the same $\varepsilon=1$ integer weighted
 average as the firmware:
 
@@ -275,51 +272,15 @@ Each split is a complete, independent re-run of pool building and NSGA-II. The p
 split shuffles rows *within* each run, so autocorrelated neighbouring events can fall on
 both sides and inflate the score. The other two splits exist to measure how much.
 
-### 3.7 CARS results (legacy — old settings)
+### 3.7 CARS results
 
-> ⚠️ **Legacy numbers.** Produced before 2026-10-22 with R1–R18 injected into the pool and
-> seeded into the initial population, a 12–29 rule budget, High 60–90 and float scoring
-> (`outputs/legacy_2026-09/cars/`). They do not describe the current method. Re-run
-> `./run_cars.sh` (ideally `SEEDS="1 2 3 4 5"`) and replace this section with its `SUMMARY.md`.
-
-**Primary and round-holdout**, at $\tau=65$:
-
-| Base | Rules | F1 | FPR | Recall | Precision | Expert rules kept |
-|---|---|---|---|---|---|---|
-| R1–R18 (hand-crafted), primary | 18 | 0.8502 | 0.0461 | – | – | 18/18 |
-| CARS knee, primary | 15 | 0.9153 | 0.0061 | 0.8628 | 0.9747 | 1/18 (R6) |
-| CARS best-F1, primary | 23 | 0.9278 | 0.0218 | 0.9341 | 0.9216 | 1/18 (R6) |
-| R1–R18, round-holdout | 18 | 0.7826 | 0.0552 | – | – | – |
-| CARS knee, round-holdout | 15 | 0.8317 | 0.0038 | 0.7239 | 0.9774 | 0/18 |
-| CARS best-F1, round-holdout | 17 | 0.8954 | 0.0261 | 0.9042 | 0.8869 | 0/18 |
-
-**Leave-one-scenario-out** (knee bases, pop 80 × 120 gens):
-
-| Held-out | Rules | CARS F1 | R1–R18 F1 | FPR | Recall | Precision |
-|---|---|---|---|---|---|---|
-| S1 decrease/jump | 13 | 0.7943 | **0.9339** | 0.0072 | 0.6713 | 0.9725 |
-| S2 decrease/slow | 12 | 0.6944 | **0.9086** | 0.0054 | 0.5416 | 0.9674 |
-| S3 increase/jump | 16 | **0.9756** | 0.9741 | 0.0037 | 0.9623 | 0.9893 |
-| S4 increase/slow | 12 | **0.9244** | 0.8101 | 0.0072 | 0.8948 | 0.9559 |
-| S5 fluctuation | 19 | **0.9754** | 0.6111 | 0.0082 | 0.9902 | 0.9610 |
-| S6 forge 2-hop | 12 | **0.6513** | 0.5988 | 0.0066 | 0.4967 | 0.9460 |
-| **mean ± std** | | **0.836 ± 0.131** | 0.806 ± 0.151 | | | |
-
-**How to read these (legacy) results:**
-
-- **CARS beats the hand-crafted base on every split in aggregate.** It improves F1 (+0.065 knee, +0.078 best-F1 on primary) *and* cuts FPR by roughly 2–8×.
-- **The FPR drop is the biggest operational gain.** For example, the knee base has 0.0061 FPR vs 0.0461.
-- **Known attack types transfer to a new round well.** The round-holdout gap is about 0.03 F1 (best-F1) or 0.08 (knee), so the primary number is not purely split leakage.
-- **Unseen attack types are the weak spot.**
-  - S2 and S6 fall to 0.69 and 0.65, and on S1/S2 the fixed R1–R18 base generalises better.
-  - Precision stays 0.95–0.99 in every fold. The failure mode is always *missed* detections, never false alarms.
-- **Expert overlap is at chance level.** Only R6 ("$v_3$ High AND $v_6$ Low → H") survives. With 18 experts in a 701-rule pool, keeping 1 is what random selection would give ($P(\ge1)\approx0.33$). So CARS *replaces* the taxonomy base rather than confirming it. Any interpretability claim has to rest on reading the selected rules themselves.
-
-**What the selected rules say** (primary best-F1):
-
-- $v_2$ (Trickle resets) at Medium or High is the dominant attack indicator. It appears in 14 of 23 rules, mostly with $z=100$.
-- $v_3$ High combined with $v_6$ Medium/Low gives $z=75$.
-- One broad rule, G12 ("$v_5$ Low AND $v_6$ Medium → L", support 0.47), carries the benign majority down.
+**Pending.** Produce them with `./run_cars.sh`, preferably `SEEDS="1 2 3 4 5"`, and take
+the tables from the run's `SUMMARY.md` (rules, F1, FPR, recall and precision for the
+primary and round-holdout knee and best-F1 bases, each LOSO fold, and the LOSO mean).
+The results quoted here before 2026-10-22 came from the old procedure (expert rules
+injected, 12–29 rules, High 60–90, float scoring) and no longer describe the method; they
+are kept, marked as legacy, in `reports/RULE_SELECTION_RESULTS.md` and
+`outputs/legacy_2026-09/`.
 
 ---
 
@@ -344,101 +305,73 @@ same L/M/H sets before entering TOP.
 
 **Complexity bound.** The complete grids total $3^3+3^2+3^2+3^3=72$ rules. The flat grid has $3^7=2187$.
 
-**Hand-crafted base.** It has 25 rules (6 RA + 5 SI + 5 CX + 9 TOP). Each rule cites the flat rule it descends from.
-
-**Behaviour change vs. the flat base.** Rule T3 discounts a High rank anomaly to $AC=50$ when context is exculpatory (CX Low). In flat R1, a High rank anomaly always gives VH.
+**Only the layout is fixed.** `hierarchy.py` defines which inputs feed which unit; every rule in every unit is selected from data.
 
 ### 4.2 Per-unit candidate pools ([`hfs_pipeline.py`](../methods/thfis/hfs_pipeline.py))
 
-`build_unit_pool` ([`hfs_pipeline.py:88`](../methods/thfis/hfs_pipeline.py#L88)) builds one pool per unit:
+`build_unit_pool` ([`hfs_pipeline.py:72`](../methods/thfis/hfs_pipeline.py#L72)) builds one pool per unit:
 
 - **Full enumeration.** Every unit has at most 3 inputs, so every antecedent is enumerated: 63 for RA and TOP ($9+27+27$), 15 for SI and CX ($6+9$). There is no Wang–Mendel step; with a grid this small, enumeration already covers every cell.
 - **Consequents.** Same Ishibuchi certainty grade as CARS.
 - **Pruning.** A support floor of 0.01 (vs 0.005 in CARS) and the same 0.15 confidence margin.
-- **No expert injection.** As in CARS, no hand-crafted RA/SI/CX/TOP rule is added to any pool; `expert_mask` only flags generated rules that share a hand-crafted antecedent (overlap reporting).
-- **TOP pool reference signal.** The TOP pool has a special problem: its inputs (RA, SI, CX) depend on which layer-1 rules are selected. So TOP consequents are assigned against a *reference* signal: the outputs of the generated layer-1 pools with all their rules on (`build_all_pools`, [`hfs_pipeline.py:120`](../methods/thfis/hfs_pipeline.py#L120)). No hand-crafted rule is involved. (Until 2026-10-22 the reference was the hand-crafted layer 1.)
+- **No hand-crafted rules**, as in CARS.
+- **TOP pool reference signal.** The TOP pool has a special problem: its inputs (RA, SI, CX) depend on which layer-1 rules are selected. So TOP consequents are assigned against a *reference* signal: the outputs of the generated layer-1 pools with all their rules on (`build_all_pools`, [`hfs_pipeline.py:97`](../methods/thfis/hfs_pipeline.py#L97)).
 
-Pool sizes per unit are printed in each run's `select.log` (legacy run: 78 candidates, of which 25 were injected hand-crafted rules).
+Pool sizes per unit are printed in each run's `select.log`.
 
-### 4.3 Joint NSGA-II ([`hfs_pipeline.py:193`](../methods/thfis/hfs_pipeline.py#L193))
+### 4.3 Joint NSGA-II ([`hfs_pipeline.py:163`](../methods/thfis/hfs_pipeline.py#L163))
 
 - **Chromosome.** The concatenation `[RA | SI | CX | TOP]` of the four unit masks.
 - **Fitness.** Every evaluation runs the **real two-layer inference**. RA, SI and CX are recomputed from whichever layer-1 rules that individual switched on, re-fuzzified, and then fed through that individual's TOP rules.
 - **Objectives, constraints and operators.** Identical to CARS: $(1-F_1,\ \mathrm{FPR},\ |S|/35)$ with $12\le|S|\le35$, where the count covers the whole hierarchy.
-- **Initial population.** Random, 5 % density; no hand-crafted rules are seeded.
+- **Initial population.** Random, 5 % density.
 - **Arithmetic.** With `ARITH=int` each unit uses the mote's integer arithmetic, including the truncation of RA, SI and CX to integers before they enter TOP.
-- **Baseline.** The hand-crafted 25-rule hierarchy is scored on the same test set for comparison only.
 
-**Export.** `export_c_hfs` emits four chained Sugeno blocks. The deployable firmware is
-[`methods/thfis/c/fuzzrid-fuzzy-hfs.c`](../methods/thfis/c/fuzzrid-fuzzy-hfs.c). It is enabled by `-DWITH_THFIS=1`
+
+**Export.** `export_c_hfs` writes `selected_rules.c` as a complete, compilable
+`fuzzrid-fuzzy-hfs.c`: the membership functions with the run's breakpoints, the integer
+Sugeno average, the four unit functions and the two entry points declared in
+[`methods/thfis/c/fuzzrid-fuzzy-hfs.h`](../methods/thfis/c/fuzzrid-fuzzy-hfs.h). It is
+bit-exact with the Python model under `ARITH=int` (checked on 10 generated bases × 20,000
+random inputs) and is copied into the firmware unchanged, enabled by `-DWITH_THFIS=1`
 ([`reports/thfis-implement.md`](thfis-implement.md)).
 
-### 4.4 T-HFIS results (legacy — old settings)
+### 4.4 T-HFIS results
 
-> ⚠️ **Legacy numbers**, same caveat as §3.7: hand-crafted rules injected and seeded, TOP
-> pool fitted against the hand-crafted layer 1, 12–29 rules, High 60–90, float scoring
-> (`outputs/legacy_2026-09/thfis/`). Re-run `./run_thfis.sh` and replace this section.
-
-| Split | Hand-crafted F1 / FPR | Knee F1 / FPR (rules) | Best-F1 F1 / FPR (rules) |
-|---|---|---|---|
-| Primary | 0.6056 / 0.0140 | 0.8718 / 0.0049 (15) | 0.9280 / 0.0201 (23 = 9+2+3+9) |
-| Round-holdout | 0.3548 / 0.0126 | 0.7848 / 0.0034 (14) | 0.8956 / 0.0244 (24 = 9+3+3+9) |
-| LOSO mean ± std | 0.572 ± 0.104 | **0.787 ± 0.158** | – |
-
-LOSO per fold (data-driven vs hand-crafted): S1 0.796/0.694 · S2 0.512/0.450 · S3 0.843/0.704 ·
-S4 0.926/0.462 · S5 0.978/0.512 · S6 0.669/0.612.
-
-- The hand-crafted hierarchy is weak: 0.61 on primary, and it collapses to 0.35 on a new round.
-- Data-driven selection fixes that. The selected hierarchy beats its hand-crafted base in all six LOSO folds.
-- The best-F1 hierarchy keeps 9 of its 25 hand-crafted rules, so its overlap with the original design is much higher than CARS's.
+**Pending**, as for CARS (§3.7): run `./run_thfis.sh` with the same `config.sh` and take the
+tables from its `SUMMARY.md`.
 
 ---
 
-## 5. CARS vs T-HFIS and why CARS was chosen
-
-> ⚠️ The numbers in this table and in reasons 1–2 are the legacy results of §3.7 and §4.4.
-> The design rows (inference, firmware cost, consequent fitting, interpretability) still hold.
+## 5. CARS vs T-HFIS: design comparison
 
 | | CARS (flat) | T-HFIS (hierarchical) |
 |---|---|---|
 | Inference | one 7-input Sugeno unit | four chained Sugeno units |
-| Candidate pool | enum ≤4 terms + Wang–Mendel (legacy: 701 incl. 18 injected expert) | full per-unit enumeration (legacy: 78 incl. 25 injected hand-crafted) |
-| Primary, best-F1 | 0.9278 / FPR 0.0218 (23 rules) | 0.9280 / FPR 0.0201 (23 rules) |
-| Primary, knee | **0.9153** / FPR 0.0061 (15) | 0.8718 / FPR 0.0049 (15) |
-| Round-holdout, knee | **0.8317** (15) | 0.7848 (14) |
-| LOSO mean F1 (knee) | **0.836 ± 0.131** | 0.787 ± 0.158 |
+| Candidate pool | enumeration of ≤4-term antecedents + Wang–Mendel cells | full enumeration per unit |
 | Firmware cost | 1 integer divide, 1 rule loop | 4 divides, 4 loops, re-fuzzification of 3 intermediates |
 | Consequent fitting | exact: each rule's certainty grade uses the real inputs | approximate for TOP: fitted against a reference layer 1 (all generated layer-1 rules on) that differs from the selected one |
 | Interpretability | each rule reads directly in terms of $v_1..v_7$ | TOP rules read in terms of abstract RA/SI/CX scores |
-| Overlap with hand-crafted base | ~chance (1/18) | substantial (9/25) |
+| Deployment | `selected_rules.c` = rule block for `fuzzrid_fuzzy_infer_ac()` | `selected_rules.c` = complete `fuzzrid-fuzzy-hfs.c` |
 
-**Why CARS was adopted.**
+**Design reasons for preferring CARS.** The accuracy comparison waits for the new runs
+(§3.7, §4.4); independently of it:
 
-1. **Same accuracy ceiling.** At the same rule count (23), both methods reach F1 ≈ 0.928. The hierarchy buys no accuracy at the top of the front.
-2. **Better generalisation for the compact bases.** At about 15 rules, CARS is ahead on primary (+0.044), round-holdout (+0.047) and the LOSO mean (+0.049). These compact bases are the ones that fit the mote budget comfortably.
-3. **Simpler and cheaper on the mote.** CARS has one weighted average and a single divide. It needs no intermediate re-fuzzification and has no layer-1/TOP coupling to keep consistent.
-4. **Cleaner method.** Every CARS consequent is fitted on the inputs the rule actually sees. The T-HFIS TOP consequents are fitted on a reference signal, which is an approximation. It shows up as a selected TOP rule with support 0.000 (T4 in the primary best-F1 base).
-5. **Direct readability.** A CARS rule such as "IF $v_2$ is H AND $v_3$ is H AND $v_5$ is L AND $v_6$ is L THEN VH" can be checked against protocol behaviour without decoding intermediate scores.
-
-**Where T-HFIS is stronger:**
-
-- It improves most over its own hand-crafted baseline (it never loses a LOSO fold to it).
-- It stays closer to the taxonomy-derived design.
-
-If the argument were "refine an expert design" rather than "select the best rules from
-data", T-HFIS would be the natural choice.
+1. **Simpler and cheaper on the mote.** CARS has one weighted average and a single divide. It needs no intermediate re-fuzzification and has no layer-1/TOP coupling to keep consistent.
+2. **Cleaner method.** Every CARS consequent is fitted on the inputs the rule actually sees. The T-HFIS TOP consequents are fitted on a reference signal, which is an approximation; a selected TOP rule can end up with near-zero support on the selected layer 1.
+3. **Direct readability.** A CARS rule such as "IF $v_2$ is H AND $v_3$ is H AND $v_5$ is L AND $v_6$ is L THEN VH" can be checked against protocol behaviour without decoding intermediate scores.
 
 ---
 
 ## 6. Limitations to state with the CARS results
 
-1. **Unseen attack types.** In the legacy runs, LOSO F1 fell to 0.65–0.69 on S2 and S6 (and the hand-crafted R1–R18 did better on S1/S2). CARS partly specialises to the attack types it was trained on. Report LOSO mean ± std alongside the primary number, not the primary number alone.
+1. **Unseen attack types.** LOSO measures transfer to an attack type never seen during selection; in earlier runs it was the weakest split (some folds far below the primary F1). Report LOSO mean ± std alongside the primary number, not the primary number alone.
 2. **Best-F1 pick uses the test split** (§3.4). The knee numbers are the clean held-out numbers.
 3. **Primary split autocorrelation.** Rows are shuffled within runs. The round-holdout and LOSO splits bound the effect.
 4. **Seeds.** The split, initial population and GA randomness are all fixed by one seed. Report results over several seeds (`SEEDS="1 2 3 4 5" ./run_cars.sh` gives mean ± std in `SUMMARY.md`).
 5. **Fixed membership functions.** Rules are selected under High = [50, 80], the firmware's setting; a base selected under one MF setting does not transfer to another. Do not tune MFs and rules on the same split.
 6. **No $z=50$ for generated rules.** This is a side effect of the 0.15 confidence margin (§3.2).
-7. **No built-in comparison with a hand-crafted base.** The code scores only data-selected bases. A comparison with R1–R18 (or $K_0$) has to be made separately, with the same test splits and arithmetic.
+7. **No comparison with a hand-crafted base.** The method and the code score only data-selected bases; there is no expert baseline.
 8. **Simulation labels.** Ground truth is attacker mote IDs in Cooja, so the results inherit the simulation's topology and mobility scope.
 
 ---

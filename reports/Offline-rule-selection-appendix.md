@@ -7,9 +7,9 @@
 > - They illustrate the reporting format only. They cannot validate the revised procedure, and
 >   each must be replaced with the re-run value.
 > - [TBD] marks items with no preliminary value. Find all of them with `grep -n "†\|TBD"`.
-> - 2026-10-22: the procedure no longer uses $K_0$ as a prior (no seed rules in the pool or the
->   initial population; $K_0$ is only the comparison baseline), High is 0 at 50 → 100 at 80,
->   and the rule cap is 35. Every † value predates this and was produced with $K_0$ seeded.
+> - 2026-10-22: the procedure uses no hand-crafted rules at all (no seed base in the pool or
+>   the initial population, and no hand-crafted baseline), High is 0 at 50 → 100 at 80, and
+>   the rule cap is 35. Every † value predates this and was produced with a seed base injected.
 > - The feature descriptions in Table A.1 come from the code comments. Check them against the
 >   definitions in the main text.
 
@@ -25,14 +25,9 @@ generalises, by re-running it on training partitions and testing on held-out one
 tests the *deployed rule base itself*, on data generated after every development decision was
 frozen.
 
-**Baseline.** During the development of FERMAD, the authors assembled an initial rule base
-$K_0$ of 33 rules from three sources: domain analysis of the attack taxonomy, preliminary
-selection runs, and analysis of simulation traces. Its data provenance is given in A.3.
-
-CARS does **not** use $K_0$. The candidate pool is generated from the training data alone and
-the search starts from random subsets (A.3–A.4); no rule of $K_0$ enters the pool or the
-initial population. $K_0$ serves only as the baseline: it is scored on the same test data as
-every selected base.
+**No hand-crafted rules.** CARS is purely data-driven. The candidate pool is generated from
+the training data alone and the search starts from random subsets (A.3–A.4); no hand-crafted
+rule base is used, either as a prior or as a baseline.
 
 **Deployed base.** The deployed rule base is the solution CARS selects on the full development
 corpus, subject to the capacity cap in A.4. It is compiled into the firmware without
@@ -233,17 +228,9 @@ with ties resolved toward the smaller $z$.
 The margin is measured from $\pi$, not from 0.5. At $\pi\approx0.21$, a 0.5-centred margin
 would retain rules that fire uniformly on all events.
 
-**No seed rules.** Every rule in the pool is generated from the training partition, with a
-data-assigned consequent. A generated rule whose antecedent coincides with one of $K_0$ is kept
-like any other candidate (with its own data-assigned consequent); it is only flagged, so that
-the overlap between a selected base and $K_0$ can be reported. Each antecedent appears in the
-pool once. The pool contains **[TBD]** candidates across splits.
-
-**Provenance of $K_0$.** The preliminary runs and traces from which $K_0$ was developed used
-**[TBD: which executions, deployments and attack variants]**. Because $K_0$ takes no part in the
-selection, this does not affect the selected bases. It matters only for the baseline
-comparison: to the extent that $K_0$'s development data overlap the test partitions of P1–P3,
-the baseline is favoured on those partitions. P4 is free of this effect.
+**Generated rules only.** Every rule in the pool is generated from the training partition,
+with a data-assigned consequent. Each antecedent appears in the pool once. The pool contains
+**[TBD]** candidates across splits.
 
 ## A.4 Multi-objective subset selection
 
@@ -290,8 +277,7 @@ computed once. Each evaluation then reduces to a masked weighted sum, which keep
 tractable. A single run takes **[TBD]** minutes on **[TBD: hardware]**.
 
 **Initial population** (line 8). Every individual is a sparse random subset with about 2% of
-candidates switched on. No prior rule base is seeded, so the search is not anchored on $K_0$ and
-the comparison with $K_0$ is not circular.
+candidates switched on. No prior rule base is seeded.
 
 **Choosing one solution** (line 10). From the final front we select the solution that minimises
 the weighted sum of min–max-normalised training objectives, with weights $(0.6,0.3,0.1)$ for
@@ -319,7 +305,7 @@ Table A.2 gives the reason for each design decision and the prior work it follow
 | Binary subset encoding + NSGA-II | Canonical formulation of fuzzy rule selection; elitist, no niching parameter to tune | [3, 4] |
 | FPR as its own objective | At deployment prevalence false alarms dominate operating cost; $F_1$ on a balanced-ish test set understates this | [5] |
 | Rule count as an objective | Pressure toward compact bases inside the cap; size is a primary interpretability measure | [3, 6] |
-| No seed base; random initial population | Keeps the selection independent of the hand-crafted base, so the comparison with $K_0$ is not circular (seeding is the usual way to inject prior knowledge [9]; it is evaluated as an ablation, Table A.5) | [9] |
+| Random initial population, no prior rule base | The selection depends on the data alone; seeding a prior rule base is the usual way to inject expert knowledge in genetic fuzzy systems [9], and is deliberately not used | [9] |
 | Fixed membership functions | Tuning breakpoints and rules on the same data would re-introduce circularity one level down | — |
 | Integer evaluation | Removes any mismatch between the evaluated and the deployed arithmetic | — |
 | Splits by execution and by variant | Row-level random splits leak correlated events across the split | [10] |
@@ -352,12 +338,6 @@ levels:
 - *Within each fold:* the median and range over seeds (Supplementary Table S1).
 - *Across folds:* the mean and s.d. of the per-fold medians.
 
-Paired differences against the unselected $K_0$ are computed per fold on the seed medians,
-then aggregated the same way.
-
-**Dominance.** For each fold we report the fraction of seeds whose selected base dominates
-$K_0$ on the training objectives.
-
 **Coverage.** Coverage is reported separately by class:
 
 - $\mathrm{NF}_1=P(\text{no rule fires}\mid y=1)$ is the share of attacks missed through zero
@@ -365,8 +345,8 @@ $K_0$ on the training objectives.
 - $\mathrm{NF}_0=P(\text{no rule fires}\mid y=0)$ is the share of benign events classified
   benign by default.
 
-These rates describe *how* decisions arise. They do not by themselves explain differences
-from the baseline.
+These rates describe *how* decisions arise; a low FPR obtained through a high NF$_0$ is
+benign-by-default, not discrimination.
 
 **Precision.** Precision is measured at the tested attack prevalence of 15–28%. It does not
 establish the false-alarm burden at deployment prevalence, which is expected to be lower.
@@ -375,18 +355,18 @@ establish the false-alarm burden at deployment prevalence, which is expected to 
 
 **Table A.3.** Test results at $\tau=65$: across-fold mean ± s.d. of per-fold seed medians.
 
-| Protocol | Rules | CARS P / R / $F_1$ | CARS FPR | CARS NF$_1$ / NF$_0$ | $K_0$ $F_1$ / FPR | $K_0$ NF$_1$ / NF$_0$ |
-|---|---|---|---|---|---|---|
-| P1 | 15† | .975 / .863 / .915† | .0061† | 1.3% / 24.4%† | .850 / .0461† | 6.4% / 3.2%† |
-| P2 | 15† | .977 / .724 / .832† | .0038† | 0.0% / 8.4%† | .783 / .0552† | 9.7% / 3.6%† |
-| P3 (6 folds) | 12–19† | .965 / .760 / .836 ± .131† | .0064 ± .0015† | 7.7% / 30.9%† | .806 ± .151 / .0472 ± .0164† | 8.3% / 3.3%† |
-| P4 (deployed base) | [TBD] | [TBD] | [TBD] | [TBD] | [TBD] | [TBD] |
+| Protocol | Rules | CARS P / R / $F_1$ | CARS FPR | CARS NF$_1$ / NF$_0$ |
+|---|---|---|---|---|
+| P1 | 15† | .975 / .863 / .915† | .0061† | 1.3% / 24.4%† |
+| P2 | 15† | .977 / .724 / .832† | .0038† | 0.0% / 8.4%† |
+| P3 (6 folds) | 12–19† | .965 / .760 / .836 ± .131† | .0064 ± .0015† | 7.7% / 30.9%† |
+| P4 (deployed base) | [TBD] | [TBD] | [TBD] | [TBD] |
 
 **Reading the preliminary figures.** These † values come from the preliminary method, and
 three points about them carry over to the revised analysis:
 
-1. *False alarms.* The preliminary bases had a lower FPR than $K_0$ in every protocol.
-2. *Detection.* $F_1$ was higher in P1 and P2, but not uniformly across the P3 folds. The
+1. *False alarms.* FPR stayed below 1% in every protocol and every P3 fold (at most 0.82%†).
+2. *Detection.* $F_1$ was high in P1 and P2 (.915, .832) but uneven across the P3 folds. The
    spread over P3 folds (s.d. 0.13) shows that transfer to an unseen attack variant is uneven.
 3. *Coverage.* The preliminary bases left a large share of benign events with no firing rule,
    with NF$_0$ up to 89.5% in fold S2†. That fraction of the low FPR arises by default, not by
@@ -394,37 +374,33 @@ three points about them carry over to the revised analysis:
 
 The revised procedure is judged on the same measures.
 
-**Preliminary dominance.** Under one search seed, the preliminary base dominated $K_0$ in
-7 of 8 protocol/fold runs† (all except fold S5†).
-
 **Table A.4.** Deployed rule base (antecedent → $z$; features not listed are $\ast$).
 
 - "Avail." is the fraction of validation runs in which the antecedent–consequent pair was in
   the pool.
 - "Sel." is the fraction of those runs in which the pair was selected.
 
-| # | Antecedent | $z$ | Origin† | Avail. | Sel. |
-|---|---|---|---|---|---|
-| 1 | $v_5L \wedge v_6M$ | 25† | generated† | [TBD] | [TBD] |
-| 2 | $v_3H \wedge v_6M$ | 75† | generated† | [TBD] | [TBD] |
-| 3 | $v_2M$ | 100† | generated† | [TBD] | [TBD] |
-| 4 | $v_2M \wedge v_4H \wedge v_5L \wedge v_7L$ | 100† | generated† | [TBD] | [TBD] |
-| 5 | $v_2M \wedge v_3H$ | 100† | generated† | [TBD] | [TBD] |
-| 6 | $v_2H \wedge v_4M \wedge v_5L \wedge v_6M$ | 75† | generated† | [TBD] | [TBD] |
-| 7 | $v_2H \wedge v_3H \wedge v_5L \wedge v_6L$ | 100† | generated† | [TBD] | [TBD] |
-| 8 | $v_2H \wedge v_3H \wedge v_4M \wedge v_6M$ | 75† | generated† | [TBD] | [TBD] |
-| 9 | $v_1L \wedge v_5M$ | 100† | generated† | [TBD] | [TBD] |
-| 10 | $v_1L \wedge v_2H \wedge v_7L$ | 100† | generated† | [TBD] | [TBD] |
-| 11 | $v_1H \wedge v_3H \wedge v_6M$ | 75† | generated† | [TBD] | [TBD] |
-| 12 | $v_1H \wedge v_3H \wedge v_4L \wedge v_6M$ | 75† | generated† | [TBD] | [TBD] |
-| 13 | $v_1H \wedge v_2H \wedge v_4H \wedge v_5L$ | 100† | generated† | [TBD] | [TBD] |
-| 14 | $v_1H \wedge v_2H \wedge v_3H \wedge v_4L \wedge v_5L \wedge v_6M \wedge v_7L$ | 75† | generated† | [TBD] | [TBD] |
-| 15 | $v_3H \wedge v_6L$ | 75† | seed† | [TBD] | [TBD] |
+| # | Antecedent | $z$ | Avail. | Sel. |
+|---|---|---|---|---|
+| 1 | $v_5L \wedge v_6M$ | 25† | [TBD] | [TBD] |
+| 2 | $v_3H \wedge v_6M$ | 75† | [TBD] | [TBD] |
+| 3 | $v_2M$ | 100† | [TBD] | [TBD] |
+| 4 | $v_2M \wedge v_4H \wedge v_5L \wedge v_7L$ | 100† | [TBD] | [TBD] |
+| 5 | $v_2M \wedge v_3H$ | 100† | [TBD] | [TBD] |
+| 6 | $v_2H \wedge v_4M \wedge v_5L \wedge v_6M$ | 75† | [TBD] | [TBD] |
+| 7 | $v_2H \wedge v_3H \wedge v_5L \wedge v_6L$ | 100† | [TBD] | [TBD] |
+| 8 | $v_2H \wedge v_3H \wedge v_4M \wedge v_6M$ | 75† | [TBD] | [TBD] |
+| 9 | $v_1L \wedge v_5M$ | 100† | [TBD] | [TBD] |
+| 10 | $v_1L \wedge v_2H \wedge v_7L$ | 100† | [TBD] | [TBD] |
+| 11 | $v_1H \wedge v_3H \wedge v_6M$ | 75† | [TBD] | [TBD] |
+| 12 | $v_1H \wedge v_3H \wedge v_4L \wedge v_6M$ | 75† | [TBD] | [TBD] |
+| 13 | $v_1H \wedge v_2H \wedge v_4H \wedge v_5L$ | 100† | [TBD] | [TBD] |
+| 14 | $v_1H \wedge v_2H \wedge v_3H \wedge v_4L \wedge v_5L \wedge v_6M \wedge v_7L$ | 75† | [TBD] | [TBD] |
+| 15 | $v_3H \wedge v_6L$ | 75† | [TBD] | [TBD] |
 
-*† Provisional: this is the 15-rule base from the preliminary P1 run, made when $K_0$ was still
-seeded ("seed" = an injected $K_0$ rule). It is replaced by the deployed base from the
-full-corpus run, in which every rule is generated; the Origin column then marks rules whose
-antecedent coincides with a $K_0$ rule.*
+*† Provisional: this is the 15-rule base from the preliminary P1 run (made with the earlier,
+seeded procedure; #15 was a seed rule). It is replaced by the deployed base from the
+full-corpus run, in which every rule is generated from data.*
 
 **Interpretation of the rules.** The preliminary base illustrates how a selected base reads:
 
@@ -441,13 +417,10 @@ accounts for this.
 
 | Variant | P2 $F_1$ / FPR | P3 $F_1$ / FPR | P4 $F_1$ / FPR | NF$_1$ / NF$_0$ |
 |---|---|---|---|---|
-| CARS (as specified: generated pool, random initialization) | [TBD] | [TBD] | [TBD] | [TBD] |
-| $K_0$ seeded (added to the pool and the initial population; the preliminary procedure) | .832 / .0038† | .836 / .0064† | [TBD] | [TBD] |
+| CARS (as specified) | [TBD] | [TBD] | [TBD] | [TBD] |
 | 0.5-centred confidence margin | [TBD] | [TBD] | [TBD] | [TBD] |
 | Pre-activation events excluded | [TBD] | [TBD] | [TBD] | [TBD] |
 | Floating-point instead of integer evaluation | [TBD] | [TBD] | [TBD] | [TBD] |
-
-The seeded variant shows what the prior adds; the main procedure does not use it.
 
 ## A.7 Reproducibility
 
@@ -469,7 +442,7 @@ The seeded variant shows what the prior adds; the main procedure does not use it
 | Search seeds | $R=$ **[TBD, ≥5]**; deployment run seed 42† |
 | Split seed (P1) | 42 |
 
-The code, the baseline $K_0$, the deployed base, and the scripts that regenerate every table
+The code, the deployed base, and the scripts that regenerate every table
 are available at **[TBD: link]**. The simulation configurations and event logs are available
 at **[TBD: link / on request]**.
 
@@ -478,14 +451,12 @@ at **[TBD: link / on request]**.
 - **Simulation scope.** Labels come from simulation ground truth, and the number of independent
   executions is small. Results may not transfer to other topologies, radio conditions or
   traffic patterns.
-- **Baseline provenance.** $K_0$ does not influence the selected bases, but its development
-  may overlap the P1–P3 test data (A.3), which would favour the baseline there. P4 is free of
-  this effect.
+- **No external reference base.** Results are reported in absolute terms; the appendix does not
+  compare against a hand-crafted rule base.
 - **Design choices.** The membership functions, threshold, objective weights and bounds are
   choices made by the authors. CARS selects rules conditional on them; it does not optimise
   them. Performance at other thresholds is not reported.
-- **Rule-level evidence.** Selection frequency shows stability, not necessity. Whether a
-  selected rule coincides with a $K_0$ rule does not show that either is correct or wrong.
+- **Rule-level evidence.** Selection frequency shows stability, not necessity.
 - **Deployment prevalence.** All metrics are measured at an attack prevalence far above what a
   real network would typically see.
 
