@@ -4,7 +4,7 @@ run_hfs_eval.py -- Flat R1-R18 vs T-HFIS head-to-head
 =====================================================
 Usage:
     python3 run_hfs_eval.py <events_csv_dir> [--atk-nodes 5,6,7,8,9,10]
-        [--atk-start-s 300] [--ac-thr 65] [--mf-high 60,90]
+        [--atk-start-s 300] [--ac-thr 65] [--mf-high 50,80]
 
 Prints per-scenario and overall F1 / FPR / recall / precision for both
 engines, the intermediate-variable summary, and the complexity table.
@@ -43,7 +43,7 @@ def main():
     ap.add_argument("--atk-id-start", type=int, default=33)
     ap.add_argument("--atk-start-s", type=int, default=300)
     ap.add_argument("--ac-thr", type=float, default=65.0)
-    ap.add_argument("--mf-high", type=str, default="60,90")
+    ap.add_argument("--mf-high", type=str, default="50,80")
     args = ap.parse_args()
 
     atk = ({int(x) for x in args.atk_nodes.split(",")} if args.atk_nodes else None)

@@ -2,7 +2,7 @@
 """
 run_loso.py -- Leave-one-scenario-out validation for the flat pipeline.
 
-Report/rules-selection-for-EF-RMAD.md Sec. 3.4 / Sec. 10 / Sec. 11 flags the
+reports/rules-selection-for-FERMAD.md Sec. 3.4 / Sec. 10 / Sec. 11 flags the
 within-scenario random split as the pipeline's weakest point (consecutive
 same-run rows are autocorrelated, so a random split leaks information
 across train/test) and explicitly says: "before any of this goes in the
@@ -42,7 +42,7 @@ def main():
     ap.add_argument("--gens", type=int, default=120)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--train-sample", type=int, default=30000)
-    ap.add_argument("--mf-high", type=str, default="60,90")
+    ap.add_argument("--mf-high", type=str, default="50,80")
     args = ap.parse_args()
 
     hc, hd = (int(x) for x in args.mf_high.split(","))

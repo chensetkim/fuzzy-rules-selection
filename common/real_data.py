@@ -181,7 +181,7 @@ def round_holdout_split(ev: pd.DataFrame, test_round: str = "r3"):
 def scenario_holdout_split(ev: pd.DataFrame, test_scenario: str = "S1"):
     """Leave-one-attack-type-out: train on the other five S-variants (every
     env/round/atkcount), test on one attack type never seen during candidate
-    generation or NSGA-II fitness. This is the fix Report/rules-selection-for-EF-RMAD.md
+    generation or NSGA-II fitness. This is the fix reports/rules-selection-for-FERMAD.md
     (Sec. 3.4) flags as needed beyond the within-scenario random split, since
     consecutive same-run rows are autocorrelated and inflate a random-split
     test score; holding out a whole attack type removes that leakage and

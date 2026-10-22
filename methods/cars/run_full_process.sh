@@ -30,7 +30,7 @@ LOG="${1:-../../data/samples/sim/sim.log}"
 # Tunables (defaults from README.md "Usage").
 TIME_UNIT="${TIME_UNIT:-us}"      # unit of the Cooja script's `time` variable
 AC_THR="${AC_THR:-65}"            # FUZZRID_TAU_Q_PCT
-MF_HIGH="${MF_HIGH:-60,90}"       # 50,80 for the pre-Mar-2026 membership funcs
+MF_HIGH="${MF_HIGH:-50,80}"       # 60,90 = March-2026 firmware membership funcs
 MAX_TERMS="${MAX_TERMS:-4}"
 MIN_RULES="${MIN_RULES:-12}"
 MAX_RULES="${MAX_RULES:-35}"      # Z1 RAM/flash budget

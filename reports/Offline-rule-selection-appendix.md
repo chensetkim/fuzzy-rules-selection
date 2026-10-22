@@ -1,4 +1,4 @@
-# Appendix A. Data-Driven Selection of the EF-RMAD Fuzzy Rule Base (CARS)
+# Appendix A. Data-Driven Selection of the FERMAD Fuzzy Rule Base (CARS)
 
 > **Draft note: remove before submission.**
 > - Values marked † are *provisional*. They come from a preliminary method: a different seed
@@ -11,7 +11,7 @@
 >   definitions in the main text.
 
 This appendix specifies CARS, the offline procedure that selects the rule base deployed in
-EF-RMAD. It has three aims:
+FERMAD. It has three aims:
 
 - to describe the procedure in enough detail to be reproduced (A.1–A.4);
 - to justify each design decision (A.5);
@@ -22,7 +22,7 @@ generalises, by re-running it on training partitions and testing on held-out one
 tests the *deployed rule base itself*, on data generated after every development decision was
 frozen.
 
-**Seed base.** During the development of EF-RMAD, the authors assembled an initial rule base
+**Seed base.** During the development of FERMAD, the authors assembled an initial rule base
 $K_0$ of 33 rules from three sources: domain analysis of the attack taxonomy, preliminary
 selection runs, and analysis of simulation traces. Its data provenance is given in A.3.
 
@@ -269,7 +269,7 @@ constraint violation.
 
 **Rule-count bounds.**
 
-- *Upper bound.* $U=33$ is the rule allocation of the current EF-RMAD firmware on the
+- *Upper bound.* $U=33$ is the rule allocation of the current FERMAD firmware on the
   Zolertia Z1 (MSP430F2617: 8 KB RAM, 92 KB flash). It is an implementation limit, not a
   measured maximum capacity **[TBD: confirm]**.
 - *Rule count as a memory proxy.* Rule count is only a proxy for memory cost. During inference

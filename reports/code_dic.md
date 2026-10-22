@@ -156,7 +156,7 @@ All three are sanity assertions in disguise:
 
 ### Contract
 
-Full specification in `reports/rules-selection-for-EF-RMAD.md` §12.
+Full specification in `reports/rules-selection-for-FERMAD.md` §12.
 
 ---
 

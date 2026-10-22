@@ -11,7 +11,7 @@ Usage:
         [--atk-id-start 33] [--atk-start-s 300] [--atk-nodes 5,6,7] \
         [--ac-thr 65] [--max-terms 4] [--min-rules 12] [--max-rules 35] \
         [--pop 120] [--gens 200] [--seed 42] [--test-frac 0.3] \
-        [--mf-high 60,90]
+        [--mf-high 50,80]
 
 <events_csv_dir> is the directory of parse_serial.py outputs
 (e.g. results/raw/csv/ with S1_run1.csv ... S6_runN.csv).
@@ -51,8 +51,8 @@ def main():
     ap.add_argument("--gens", type=int, default=200)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--test-frac", type=float, default=0.3)
-    ap.add_argument("--mf-high", type=str, default="60,90",
-                    help="High-set breakpoints c,d (use 50,80 for pre-Mar-2026 base)")
+    ap.add_argument("--mf-high", type=str, default="50,80",
+                    help="High-set breakpoints c,d (60,90 = March-2026 firmware)")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)

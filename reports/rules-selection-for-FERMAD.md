@@ -1,4 +1,4 @@
-# Offline Fuzzy Rule Selection for EF-RMAD — Technical Reference
+# Offline Fuzzy Rule Selection for FERMAD — Technical Reference
 
 Complete technical description of the pipeline driven by `rs/run_selection.py`, the
 justification for each design decision, and the literature each decision rests on.
@@ -1053,7 +1053,7 @@ be kept.
 
 **Decision (2026-09-30).** The appendix now describes **Option A**:
 
-- The 33-rule base currently used in EF-RMAD becomes the seed base $K_0$, taking the place of
+- The 33-rule base currently used in FERMAD becomes the seed base $K_0$, taking the place of
   R1–R18.
 - CARS then selects freely from the pool of generated rules plus $K_0$.
 - The deployed base is exactly what CARS selects, with no manual edits afterwards.

@@ -112,7 +112,7 @@ def main():
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--test-frac", type=float, default=0.3)
     ap.add_argument("--train-sample", type=int, default=40000)
-    ap.add_argument("--mf-high", type=str, default="60,90")
+    ap.add_argument("--mf-high", type=str, default="50,80")
     args = ap.parse_args()
 
     hc, hd = (int(x) for x in args.mf_high.split(","))

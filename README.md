@@ -1,6 +1,6 @@
-# Fuzzy rule selection for EF-RMAD
+# Fuzzy rule selection for FERMAD
 
-Offline, data-driven selection of the EF-RMAD fuzzy rule base from Cooja simulation logs.
+Offline, data-driven selection of the FERMAD fuzzy rule base from Cooja simulation logs.
 Two methods are implemented: **CARS** (flat NSGA-II selection, the adopted method) and
 **T-HFIS** (hierarchical selection, evaluated as an alternative).
 
@@ -63,7 +63,7 @@ python3 methods/thfis/run_hfs_loso.py            # -> outputs/thfis/loso/S1..S6/
 ```
 
 Use `--pop 20 --gens 5 --train-sample 3000 --out-root <tmp>` for a quick check.
-Full instructions: [reports/rules-selection-for-EF-RMAD.md §14](reports/rules-selection-for-EF-RMAD.md).
+Full instructions: [reports/rules-selection-for-FERMAD.md §14](reports/rules-selection-for-FERMAD.md).
 
 > `outputs/cars/by_attackers/a3,a6,a9` came from the old `Data/out/` folder; its origin
 > (which script and settings) is not recorded.

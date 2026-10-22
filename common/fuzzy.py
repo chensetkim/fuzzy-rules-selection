@@ -26,7 +26,9 @@ Z_NAMES = {0: "VL", 25: "L", 50: "M", 75: "H", 100: "VH"}
 
 # ---------------------------------------------------------------------------
 # Membership functions on [0,100] percent scale.
-# Defaults follow the March-2026 firmware update: High shifted [50,80]->[60,90].
+# Defaults (2026-10-22): L = 1 on [0,20] -> 0 at 50; M = 0 at 20, peak at 50,
+# 0 at 80; H = 0 at 50 -> 1 at 80, 1 on [80,100]. (The March-2026 firmware
+# used High [60,90]; pass high=(60, 90) / --mf-high 60,90 to reproduce it.)
 # Breakpoints are parameters so the pre-update base can be reproduced.
 # ---------------------------------------------------------------------------
 
@@ -34,7 +36,7 @@ class MFConfig:
     def __init__(self,
                  low=(20, 50),      # mu_L = 1 for v<=20, linear -> 0 at 50
                  med=(20, 50, 80),  # mu_M = 0 at 20, peak 1 at 50, 0 at 80
-                 high=(60, 90)):    # mu_H = 0 at 60, linear -> 1 at 90, 1 after
+                 high=(50, 80)):    # mu_H = 0 at 50, linear -> 1 at 80, 1 after
         self.low, self.med, self.high = low, med, high
 
     def memberships(self, X: np.ndarray) -> np.ndarray:

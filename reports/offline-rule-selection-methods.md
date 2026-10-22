@@ -1,4 +1,4 @@
-# Fuzzy Rule Selection for EF-RMAD: CARS and T-HFIS
+# Fuzzy Rule Selection for FERMAD: CARS and T-HFIS
 
 This report explains how the two data-driven fuzzy rule-selection methods in this
 repository work, based on the code. The two methods are:
@@ -12,14 +12,14 @@ repository work, based on the code. The two methods are:
 alternative architecture. It is documented here (§4) because the comparison in §5
 is part of the reason for choosing CARS.
 
-> Naming: the IDS was renamed from 2H-FuzzRID to **EF-RMAD**. Code identifiers
+> Naming: the IDS was renamed from 2H-FuzzRID to EF-RMAD, and then to **FERMAD**. Code identifiers
 > (`fuzzrid_fuzzy_infer_ac`, `FUZZRID_TAU_Q_PCT`, …) still use the old name.
 
 ---
 
 ## 1. The problem both methods solve
 
-The EF-RMAD detector computes seven evidence features $v_1 \dots v_7$ for every observed
+The FERMAD detector computes seven evidence features $v_1 \dots v_7$ for every observed
 neighbour, each on a $[0,100]$ scale. A zero-order Takagi–Sugeno fuzzy engine turns them
 into an **Attack Confidence** $AC \in [0,100]$, and a node is flagged when
 $AC \ge \tau = 65$ (`FUZZRID_TAU_Q_PCT`).
@@ -447,4 +447,4 @@ The outputs are written to `outputs/cars/{primary,round_holdout,loso/S1..S6}/` a
 - D. Arp et al., "Dos and don'ts of machine learning in computer security," *USENIX Security*, 2022.
 - M. J. Gacto, R. Alcalá, F. Herrera, "Interpretability of linguistic fuzzy rule-based systems," *Inf. Sci.* 181(20), 2011.
 
-Full technical detail for CARS: [`reports/rules-selection-for-EF-RMAD.md`](rules-selection-for-EF-RMAD.md).
+Full technical detail for CARS: [`reports/rules-selection-for-FERMAD.md`](rules-selection-for-FERMAD.md).

@@ -35,11 +35,11 @@
 /* ---- membership functions: identical family to fuzzrid-fuzzy.c ---- */
 /* Low : 100 on [0,20], linear to 0 at 50                               */
 /* Med : 0 at 20, peak 100 at 50, 0 at 80                               */
-/* High: 0 at 60, linear to 100 at 90, 100 on [90,100]                  */
-/*       (pre-Mar-2026 base used 50/80; change HI_C/HI_D to revert)     */
+/* High: 0 at 50, linear to 100 at 80, 100 on [80,100]                  */
+/*       (March-2026 firmware used 60/90; set HI_C/HI_D to revert)       */
 
-#define HI_C 60
-#define HI_D 90
+#define HI_C 50
+#define HI_D 80
 
 static uint8_t mu_L(uint8_t v)
 {
