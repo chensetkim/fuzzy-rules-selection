@@ -22,12 +22,13 @@ import numpy as np
 
 METRIC_RE = re.compile(r"test F1=([\d.]+) FPR=([\d.]+) recall=([\d.]+) precision=([\d.]+)")
 NRULES_RE = re.compile(r"\((\d+) rules")          # "(18 rules)" / "(12 rules total..."
+CEIL_RE = re.compile(r"data ceiling on this test: F1<=([\d.]+)")
 
 TITLES = {"cars": "CARS", "thfis": "T-HFIS"}
 
 
 def read_base(path: str):
-    """-> dict(n, f1, fpr, rec, prec) from a selected_rules*.txt, or None."""
+    """-> dict(n, f1, fpr, rec, prec, ceil) from a selected_rules*.txt, or None."""
     if not os.path.isfile(path):
         return None
     txt = open(path).read()
@@ -35,7 +36,9 @@ def read_base(path: str):
     if not (m and n):
         return None
     f1, fpr, rec, prec = (float(x) for x in m.groups())
-    return dict(n=int(n.group(1)), f1=f1, fpr=fpr, rec=rec, prec=prec)
+    c = CEIL_RE.search(txt)
+    return dict(n=int(n.group(1)), f1=f1, fpr=fpr, rec=rec, prec=prec,
+                ceil=float(c.group(1)) if c else None)
 
 
 def fmt(vals, digits=4):
@@ -70,8 +73,8 @@ def main():
     lines = [f"# {title} run summary — `{os.path.basename(run_dir)}`", "",
              f"Seeds: {', '.join(seeds)}" + (" (values are mean ± std over seeds)" if multi else ""),
              "", "Settings: see `config.txt`.", "",
-             "| Split | Rules | F1 | FPR | Recall | Precision |",
-             "|---|---|---|---|---|---|"]
+             "| Split | Rules | F1 | FPR | Recall | Precision | Ceiling F1 |",
+             "|---|---|---|---|---|---|---|"]
     loso_f1 = {d: [] for d in seed_dirs}
     for label, rel in rows:
         res = [read_base(os.path.join(d, rel)) for d in seed_dirs]
@@ -79,7 +82,8 @@ def main():
             continue
         get = lambda k: [r[k] if r else None for r in res]
         lines.append(f"| {label} | {fmt(get('n'), 1) if multi else fmt(get('n'))} | "
-                     f"{fmt(get('f1'))} | {fmt(get('fpr'))} | {fmt(get('rec'))} | {fmt(get('prec'))} |")
+                     f"{fmt(get('f1'))} | {fmt(get('fpr'))} | {fmt(get('rec'))} | {fmt(get('prec'))} | "
+                     f"{fmt(get('ceil'))} |")
         if label.startswith("LOSO"):
             for d, r in zip(seed_dirs, res):
                 if r:
@@ -88,7 +92,10 @@ def main():
     means = [np.mean(v) for v in loso_f1.values() if len(v) == 6]
     if means:
         lines += ["", f"LOSO mean F1 over S1–S6: **{fmt(means)}**"]
-    lines += ["", "Deployable rule bases: `seed_<s>/primary/selected_rules.c` (knee) and "
+    lines += ["", "Ceiling F1 = best F1 any classifier of v1..v7 can reach on that test set "
+              "(identical vectors carry both labels). A result at or near it suggests leakage "
+              "rather than a better rule base.",
+              "", "Deployable rule bases: `seed_<s>/primary/selected_rules.c` (knee) and "
               "`selected_rules_best_f1.c` (best-F1). The firmware membership functions must "
               "match `MF_HIGH` in `config.txt`.", ""]
 

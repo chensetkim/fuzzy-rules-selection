@@ -31,12 +31,20 @@ from pymoo.termination import get_termination
 from fuzzy import sugeno_ac
 
 
-def f1_fpr(ac: np.ndarray, y: np.ndarray, ac_thr: float = 65.0):
+def f1_fpr(ac: np.ndarray, y: np.ndarray, ac_thr: float = 65.0, w=None):
+    """F1, FPR and confusion counts. w = per-row event counts (weighted rows,
+    see real_data.compress); None = one event per row."""
     pred = ac >= ac_thr
-    tp = int(np.sum(pred & (y == 1)))
-    fp = int(np.sum(pred & (y == 0)))
-    fn = int(np.sum(~pred & (y == 1)))
-    tn = int(np.sum(~pred & (y == 0)))
+    if w is None:
+        tp = int(np.sum(pred & (y == 1)))
+        fp = int(np.sum(pred & (y == 0)))
+        fn = int(np.sum(~pred & (y == 1)))
+        tn = int(np.sum(~pred & (y == 0)))
+    else:
+        tp = int(np.sum(w[pred & (y == 1)]))
+        fp = int(np.sum(w[pred & (y == 0)]))
+        fn = int(np.sum(w[~pred & (y == 1)]))
+        tn = int(np.sum(w[~pred & (y == 0)]))
     prec = tp / (tp + fp) if tp + fp else 0.0
     rec = tp / (tp + fn) if tp + fn else 0.0
     f1 = 2 * prec * rec / (prec + rec) if prec + rec else 0.0
@@ -46,8 +54,8 @@ def f1_fpr(ac: np.ndarray, y: np.ndarray, ac_thr: float = 65.0):
 
 class RuleSelectionProblem(Problem):
     def __init__(self, W: np.ndarray, z: np.ndarray, y: np.ndarray,
-                 ac_thr: float = 65.0, max_rules: int = 30, min_rules: int = 0):
-        self.W, self.z, self.y = W, z, y
+                 ac_thr: float = 65.0, max_rules: int = 30, min_rules: int = 0, w=None):
+        self.W, self.z, self.y, self.w = W, z, y, w
         self.ac_thr, self.max_rules, self.min_rules = ac_thr, max_rules, min_rules
         n_constr = 2 if min_rules > 0 else 1
         super().__init__(n_var=W.shape[1], n_obj=3, n_constr=n_constr, xl=0, xu=1,
@@ -65,7 +73,7 @@ class RuleSelectionProblem(Problem):
                     G[i, 1] = self.min_rules
                 continue
             ac = sugeno_ac(self.W, self.z, subset=mask)
-            f1, fpr, _ = f1_fpr(ac, self.y, self.ac_thr)
+            f1, fpr, _ = f1_fpr(ac, self.y, self.ac_thr, self.w)
             F[i] = [1.0 - f1, fpr, n / self.max_rules]
             G[i, 0] = n - self.max_rules       # constraint: |S| <= max_rules
             if self.n_constr > 1:
@@ -82,10 +90,10 @@ def random_population(pool_size: int, pop_size: int, seed: int = 42,
 
 def run_nsga2(pool: dict, y: np.ndarray, ac_thr: float = 65.0,
               max_rules: int = 30, min_rules: int = 0, pop_size: int = 120,
-              n_gen: int = 200, seed: int = 42, verbose: bool = True):
+              n_gen: int = 200, seed: int = 42, verbose: bool = True, w=None):
     W, z = pool["W"], pool["z"]
     problem = RuleSelectionProblem(W, z, y, ac_thr=ac_thr, max_rules=max_rules,
-                                   min_rules=min_rules)
+                                   min_rules=min_rules, w=w)
 
     init = random_population(W.shape[1], pop_size, seed=seed)
     algo = NSGA2(pop_size=pop_size,

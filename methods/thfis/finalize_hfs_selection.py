@@ -27,7 +27,7 @@ from optimize import f1_fpr
 from hfs_pipeline import (build_all_pools, pool_dims,
                           hfs_infer, rules_listing_hfs, export_c_hfs,
                           split_mask)
-from real_data import (load_real_events, features_labels, stratified_scenario_split,
+from real_data import (load_real_events, compress, vector_ceiling, stratified_scenario_split,
                        round_holdout_split, stratified_subsample)
 
 
@@ -55,10 +55,13 @@ def main():
     ap.add_argument("--conf-margin", type=float, default=0.15)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--test-frac", type=float, default=0.3)
-    ap.add_argument("--train-sample", type=int, default=40000)
+    ap.add_argument("--train-sample", type=int, default=0,
+                    help="events sampled for pool/NSGA-II; 0 = whole training partition")
     ap.add_argument("--mf-high", type=str, default="50,80")
     ap.add_argument("--arith", choices=["int", "float"], default="int",
                     help="int = firmware integer arithmetic (default), float = continuous model")
+    ap.add_argument("--label-start", default="launch",
+                    help="attack start for labelling: launch (each attacker\'s [ATK-LAUNCHED] time) or seconds, e.g. 300")
     ap.add_argument("--min-rules", type=int, default=12)
     ap.add_argument("--max-rules", type=int, default=35)
     args = ap.parse_args()
@@ -66,18 +69,20 @@ def main():
 
     hc, hd = (int(x) for x in args.mf_high.split(","))
     mf = MFConfig(high=(hc, hd))
-    ev = load_real_events(args.csv_root, verbose=False)
+    ev = load_real_events(args.csv_root, label_start=args.label_start, verbose=False)
     if args.split == "primary":
         tr, te = stratified_scenario_split(ev, test_frac=args.test_frac, seed=args.seed)
     else:
         tr, te = round_holdout_split(ev, test_round="r3")
 
-    train_sample = stratified_subsample(tr, n_target=args.train_sample, seed=args.seed)
-    X_trs, y_trs, _ = features_labels(train_sample)
-    X_te, y_te, _ = features_labels(te)
+    train_sample = (stratified_subsample(tr, n_target=args.train_sample, seed=args.seed)
+                    if args.train_sample > 0 else tr)
+    X_trs, y_trs, w_trs = compress(train_sample)
+    X_te, y_te, w_te = compress(te)
+    c_f1, c_fpr = vector_ceiling(te)
 
     ra_pool, si_pool, cx_pool, top_pool = build_all_pools(
-        X_trs, y_trs, mf, min_support=args.min_support, conf_margin=args.conf_margin)
+        X_trs, y_trs, mf, min_support=args.min_support, conf_margin=args.conf_margin, w=w_trs)
     dims = pool_dims(ra_pool, si_pool, cx_pool, top_pool)
 
     df = pd.read_csv(os.path.join(args.out_dir, "pareto_front.csv"))
@@ -97,7 +102,7 @@ def main():
         f"mask reconstruction mismatch: {mask.sum()} vs {row['n_rules']}"
 
     ac_best, _ = hfs_infer(X_te, ra_pool, si_pool, cx_pool, top_pool, mask, mf, dims)
-    f1_b, fpr_b, cm_b = f1_fpr(ac_best, y_te, args.ac_thr)
+    f1_b, fpr_b, cm_b = f1_fpr(ac_best, y_te, args.ac_thr, w_te)
 
     out_txt = os.path.join(args.out_dir, "selected_rules_best_f1.txt")
     with open(out_txt, "w") as f:
@@ -106,7 +111,8 @@ def main():
                 f"({int(mask.sum())} rules total: RA={int(ra_m.sum())} SI={int(si_m.sum())} "
                 f"CX={int(cx_m.sum())} TOP={int(top_m.sum())})\n"
                 f"test F1={f1_b:.4f} FPR={fpr_b:.4f} recall={cm_b['recall']:.4f} "
-                f"precision={cm_b['precision']:.4f}\n\n"
+                f"precision={cm_b['precision']:.4f}\n"
+                f"data ceiling on this test: F1<={c_f1:.4f} FPR={c_fpr:.4f}\n\n"
                 + rules_listing_hfs(mask, dims, ra_pool, si_pool, cx_pool, top_pool) + "\n")
     export_c_hfs(mask, dims, ra_pool, si_pool, cx_pool, top_pool,
                 os.path.join(args.out_dir, "selected_rules_best_f1.c"), mf)

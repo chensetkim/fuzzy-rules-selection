@@ -135,7 +135,7 @@ deployed when the corpus was recorded]**.
 
 ## A.2 Data and labelling
 
-**Development corpus.** The development corpus contains 388,338 detection events, 21.6% of
+**Development corpus.** The development corpus contains 390,201 detection events, 21.9% of
 them attacks (after the exclusions below). It comes from Cooja simulations of RPL networks under six rank-attack variants:
 
 | Variant | Attack behaviour |
@@ -161,20 +161,18 @@ generated *after* all CARS settings and the deployed base were frozen. It uses n
 simulation seeds **[TBD: and a different topology/mobility trace]**. It was used for nothing
 except the P4 evaluation in A.6.
 
-**Labelling target.** The target is *current malicious behaviour*. The attack phase starts at
-a fixed $t_a=300$ s of simulated time. An event is labelled malicious ($y=1$) when the observed
-node is an attacker and $t\ge t_a$; all other retained events are labelled benign ($y=0$).
+**Labelling target.** The target is *current malicious behaviour*. Each attacker's attack phase
+starts at its own launch time $t_a(j)$, which the attacker mote logs when its attack starts
+(one launch record per attacker; 200.4–331.0 s of simulated time across the 432 attackers). An
+event is labelled malicious ($y=1$) when the observed node $j$ is an attacker and
+$t\ge t_a(j)$; all other retained events are labelled benign ($y=0$).
 
 Two kinds of event are removed rather than labelled:
 
 - Events *reported by* attacker nodes. Attackers do not run the IDS honestly, so their reports
   are not evidence the deployed system would act on.
-- The 9,577 observations *of* attackers before $t_a$. Before launch an attacker behaves
+- The 7,714 observations *of* attackers before their launch. Before launch an attacker behaves
   honestly, so either label would put noise into a region the rules cannot separate.
-
-In the logs, 646 of the 648 attacker activations fall between 200 s and 299 s; attacker events
-between activation and $t_a$ are therefore among the removed ones. Two activations occur at
-329 s and 330 s, so up to 30 s of those attackers' honest behaviour is labelled malicious.
 
 ## A.3 Candidate pool
 
@@ -187,23 +185,25 @@ concerned. Algorithm A.1 summarises the whole procedure.
 Input : training events D, settings Θ (Table A.6)
 Output: selected rule base S*
 
- 1  D_s ← stratified sample of D (40,000 events)
- 2  P ← WangMendelCells(D_s, 200) ∪ Enumerate(max_terms = 4)
+ 1  (X, n) ← distinct (evidence vector, label) pairs of D, n = event counts
+ 2  P ← WangMendelCells(X, n, 200) ∪ Enumerate(max_terms = 4)
  3  for each r in P:
- 4      c_r, s_r, z_r ← confidence, support, consequent of r on D_s  (integer arithmetic)
+ 4      c_r, s_r, z_r ← confidence, support, consequent of r on D  (count-weighted, integer arithmetic)
  5  P ← { r ∈ P : s_r ≥ s_min  and  |c_r − 0.5| ≥ m }
- 6  W ← firing strengths of every r ∈ P on every event in D_s (computed once)
- 7  (W is reused for every fitness evaluation)
+ 6  W ← firing strengths of every r ∈ P on every row of X (computed once)
+ 7  (W and n are reused for every fitness evaluation)
  8  Pop_0 ← sparse random subsets
  9  Front ← NSGA-II(Pop_0; objectives (1−F1, FPR, |S|/U); 12 ≤ |S| ≤ U)
 10  S* ← argmin over Front of weighted, min–max-normalised training objectives
 11  return S*                                   (exported as integer C for the firmware)
 ```
 
-**Fitness sample** (line 1). All of A.3 and A.4 works on a 40,000-event sample $D_s$ of the
-training partition. It is drawn without replacement from every stratum (scenario × deployment
-× attacker count × execution), in proportion to stratum size and with at least one event per
-stratum. Reported test metrics always use the full test partition.
+**Weighted rows** (line 1). The inference depends only on the evidence vector, and about 10% of
+events have a distinct one. All of A.3 and A.4 therefore works on the distinct (vector, label)
+pairs of the **whole** training partition, each weighted by its event count $n$; every count
+below (confidence, support, cell occupancy, $F_1$, FPR) is weighted, so the result is exactly
+the one on the individual events. This reduces the P1 training partition from 273,138 events to
+31,138 rows. Reported test metrics always use the full test partition.
 
 **Generated candidates** (line 2). Two generators produce the pool:
 
@@ -217,11 +217,11 @@ stratum. Reported test metrics always use the full test partition.
 Enumerated rules use at most four features, so the two sets cannot overlap.
 
 **Consequents** (lines 3–4). For each candidate we compute its confidence and
-support [2] over the events of $D_s$:
+support [2] over the training events $D$:
 
 $$
-c_r=\frac{\sum_{\mathbf{x}\in D_s:\,y=1}w_r(\mathbf{x})}{\sum_{\mathbf{x}\in D_s}w_r(\mathbf{x})},\qquad
-s_r=\frac{1}{100\,|D_s|}\sum_{\mathbf{x}\in D_s}w_r(\mathbf{x}).
+c_r=\frac{\sum_{\mathbf{x}\in D:\,y=1}w_r(\mathbf{x})}{\sum_{\mathbf{x}\in D}w_r(\mathbf{x})},\qquad
+s_r=\frac{1}{100\,|D|}\sum_{\mathbf{x}\in D}w_r(\mathbf{x}).
 $$
 
 $c_r$ is the firing-weighted fraction of attacks among the events the rule covers. $s_r$ is its
@@ -251,7 +251,7 @@ rule base $S$ [2, 3]. With $|P|$ in the hundreds, the search space of $2^{|P|}$ 
 out exhaustive search.
 
 **Objectives and constraints** (line 9). NSGA-II [4] minimises three objectives on the
-training sample:
+training partition:
 
 $$
 f_1=1-F_1,\qquad f_2=\mathrm{FPR},\qquad f_3=|S|/U,
@@ -280,9 +280,9 @@ constraint violation.
 - Uniform crossover ($p=0.9$) and bit-flip mutation with probability $1/|P|$ per bit.
 - Duplicate elimination.
 
-**Computational cost** (lines 6–7). The firing strengths of all candidates on the fitness sample are
-computed once. Each evaluation then reduces to a masked weighted sum, which keeps a run
-tractable. A single run takes **[TBD]** minutes on **[TBD: hardware]**.
+**Computational cost** (lines 6–7). The firing strengths of all candidates on the weighted rows
+are computed once. Each evaluation then reduces to a masked weighted sum over about 31,000 rows,
+which keeps a run tractable. A single run takes **[TBD]** minutes on **[TBD: hardware]**.
 
 **Initial population** (line 8). Every individual is a sparse random subset with about 2% of
 candidates switched on. No prior rule base is seeded.
@@ -345,6 +345,12 @@ levels:
 
 - *Within each fold:* the median and range over seeds (Supplementary Table S1).
 - *Across folds:* the mean and s.d. of the per-fold medians.
+
+**Data ceiling.** Identical evidence vectors occur with both labels, so no classifier of
+$v_1..v_7$ can be perfect. For each test partition we report the $F_1$ of predicting every
+distinct vector as its majority label in that partition, an upper bound for any rule base
+(about 0.988 for P1 and P2). A result at or near it would indicate leakage rather than a better
+rule base.
 
 **Coverage.** Coverage is reported separately by class:
 
@@ -427,8 +433,8 @@ accounts for this.
 |---|---|---|---|---|
 | CARS (as specified) | [TBD] | [TBD] | [TBD] | [TBD] |
 | Prior-centred confidence margin ($\lvert c_r-\pi\rvert\ge m$) | [TBD] | [TBD] | [TBD] | [TBD] |
-| Pre-$t_a$ attacker events labelled benign instead of removed | [TBD] | [TBD] | [TBD] | [TBD] |
-| Per-attacker activation time instead of fixed $t_a=300$ s | [TBD] | [TBD] | [TBD] | [TBD] |
+| Pre-launch attacker events labelled benign instead of removed | [TBD] | [TBD] | [TBD] | [TBD] |
+| Fixed attack start $t_a=300$ s for every attacker instead of its own launch time | [TBD] | [TBD] | [TBD] | [TBD] |
 | Floating-point instead of integer evaluation | [TBD] | [TBD] | [TBD] | [TBD] |
 
 ## A.7 Reproducibility
@@ -442,12 +448,12 @@ accounts for this.
 | Detection threshold $\tau$ | 65 |
 | Enumeration bound | ≤ 4 antecedent terms |
 | Wang–Mendel cells | 200 most frequent |
-| Labelling | $y=1$ iff observed node is an attacker and $t\ge t_a=300$ s; attacker-reported events and pre-$t_a$ attacker events removed |
+| Labelling | $y=1$ iff observed node $j$ is an attacker and $t\ge t_a(j)$, its own launch time; attacker-reported events and pre-launch attacker events removed |
 | Pruning | $s_{\min}=0.005$; $\lvert c_r-0.5\rvert\ge m=0.15$ |
 | Rule bounds | $12\le\lvert S\rvert\le35$ |
 | NSGA-II | pop 150, 250 generations, uniform crossover 0.9, bit-flip $1/\lvert P\rvert$, duplicate elimination |
 | Initial population | random subsets at ≈2% density (no seed base) |
-| Fitness sample $D_s$ | 40,000 events, stratified by scenario × deployment × attackers × execution; used for pool generation, consequents, pruning and fitness |
+| Training data | the whole training partition, as distinct (vector, label) rows weighted by event count; used for pool generation, consequents, pruning and fitness |
 | Solution choice | weights (0.6, 0.3, 0.1) on min–max-normalised $(f_1,f_2,f_3)$ |
 | Search seeds | $R=$ **[TBD, ≥5]**; deployment run seed 42† |
 | Split seed (P1) | 42 |

@@ -11,7 +11,7 @@
 # shellcheck disable=SC1091
 source "$ROOT/config.sh"
 
-CONFIG_VARS=(QUICK SEEDS MIN_RULES MAX_RULES MF_HIGH AC_THR ARITH TEST_FRAC CONF_MARGIN
+CONFIG_VARS=(QUICK SEEDS MIN_RULES MAX_RULES MF_HIGH AC_THR ARITH LABEL_START TEST_FRAC CONF_MARGIN
              POP GENS TRAIN_SAMPLE LOSO_POP LOSO_GENS LOSO_TRAIN CSV_ROOT
              CARS_MAX_TERMS CARS_MIN_SUPPORT THFIS_MIN_SUPPORT)
 
@@ -71,7 +71,7 @@ else
     {
         echo "# $(basename "$0") settings ($(date '+%Y-%m-%d %H:%M'), commit $COMMIT)"
         for v in "${CONFIG_VARS[@]}"; do printf '%s="%s"\n' "$v" "${!v}"; done
-        echo "# fixed: ATK_START_S=300 (common/real_data.py), no hand-crafted rules used"
+        echo "# fixed: no hand-crafted rules used; identical (vector, label) events are weighted rows"
     } > "$OUT/config.txt"
 fi
 echo "run folder: $OUT"
@@ -100,14 +100,12 @@ export PYTHONUNBUFFERED=1
 # 1. parse (optional)
 # ---------------------------------------------------------------------------
 if want parse && [ "$DO_PARSE" = 1 ]; then
-    bold "1/5 parse  data/raw/logs -> $CSV_ROOT"
+    bold "1/5 parse  data/raw -> $CSV_ROOT"
     mkdir -p "$OUT/logs"
-    for env in mobile static; do for r in r1 r2 r3; do for n in 3 6 9; do
-        [ -d "data/raw/logs/$env/$r/$n" ] || continue
-        run_step "$env/$r/$n" "$OUT/logs/parse_${env}_${r}_${n}.log" \
-            env LOG_PATH="$ROOT/data/raw/logs/$env/$r/$n" OUTPUT_PATH="$ROOT/$CSV_ROOT/$env/$r/$n" \
-            ./scripts/parse_serial.sh
-    done; done; done
+    run_step "parse_serial.sh" "$OUT/logs/parse.log" \
+        env LOG_PATH="$ROOT/data/raw" OUTPUT_PATH="$ROOT/$CSV_ROOT" ./scripts/parse_serial.sh
+    run_step "extract_launch.py" "$OUT/logs/launch.log" \
+        "$PY" scripts/extract_launch.py data/raw data/attack_launch.csv
 elif want parse; then
     bold "1/5 parse  (skipped -- use --parse to rebuild CSVs from logs)"
 fi
@@ -116,5 +114,5 @@ if want check; then
     n_csv=$(find "$CSV_ROOT" -name '*.csv' | wc -l)
     echo "  CSVs   : $n_csv in $CSV_ROOT"
     [ "$n_csv" -gt 0 ] || die "no CSVs in $CSV_ROOT -- run with --parse"
-    [ "$n_csv" -eq 108 ] || echo "  warning: expected 108 CSVs (2 env x 3 rounds x 3 atk counts x 6 scenarios)"
+    [ "$n_csv" -eq 72 ] || echo "  warning: expected 72 CSVs (mobile 3 rounds + static 1 round, x 3 atk counts x 6 scenarios)"
 fi

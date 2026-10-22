@@ -28,16 +28,19 @@ def main():
     ap.add_argument("--pop", type=int, default=80)
     ap.add_argument("--gens", type=int, default=100)
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--train-sample", type=int, default=30000)
+    ap.add_argument("--train-sample", type=int, default=0,
+                    help="events sampled for pool/NSGA-II; 0 = whole training partition")
     ap.add_argument("--mf-high", type=str, default="50,80")
     ap.add_argument("--arith", choices=["int", "float"], default="int",
                     help="int = firmware integer arithmetic (default), float = continuous model")
+    ap.add_argument("--label-start", default="launch",
+                    help="attack start for labelling: launch (each attacker\'s [ATK-LAUNCHED] time) or seconds, e.g. 300")
     args = ap.parse_args()
     set_arithmetic(args.arith)
 
     hc, hd = (int(x) for x in args.mf_high.split(","))
     mf = MFConfig(high=(hc, hd))
-    ev = load_real_events(args.csv_root)
+    ev = load_real_events(args.csv_root, label_start=args.label_start)
 
     results = []
     for scen in ["S1", "S2", "S3", "S4", "S5", "S6"]:

@@ -17,7 +17,7 @@
 #   QUICK=1 ./run_thfis.sh                 ~30 s per seed smoke test
 #   SEEDS="1 2 3 4 5" ./run_thfis.sh       multi-seed; SUMMARY.md shows mean ± std
 #   MAX_RULES=30 SEED=7 ./run_thfis.sh     any setting can be overridden
-#   ./run_thfis.sh --parse                 also re-parse data/raw/logs -> data/processed
+#   ./run_thfis.sh --parse                 also re-parse data/raw -> data/processed
 #   ./run_thfis.sh --out outputs/thfis/run_X --from loso
 #                                          resume an earlier run from a step
 #                                          (its config.txt is reused)
@@ -32,13 +32,13 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
 METHOD=thfis
-RESULT_RE="knee base|^\[finalize-hfs\]"
+RESULT_RE="data ceiling|knee base|^\[finalize-hfs\]"
 # shellcheck disable=SC1091
 source scripts/run_common.sh
 
 COMMON=(--csv-root "$CSV_ROOT" --ac-thr "$AC_THR"
         --min-support "$THFIS_MIN_SUPPORT" --conf-margin "$CONF_MARGIN"
-        --mf-high "$MF_HIGH" --arith "$ARITH" --min-rules "$MIN_RULES" --max-rules "$MAX_RULES")
+        --mf-high "$MF_HIGH" --arith "$ARITH" --label-start "$LABEL_START" --min-rules "$MIN_RULES" --max-rules "$MAX_RULES")
 
 # ---------------------------------------------------------------------------
 # 2-4. per seed: select, loso, finalize

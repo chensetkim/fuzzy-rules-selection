@@ -73,8 +73,9 @@ def build_unit_pool(X_local: np.ndarray, y: np.ndarray, mf: MFConfig,
                     unit_tag: str,
                     max_terms: int | None = None,
                     min_support: float = 0.01, conf_margin: float = 0.15,
-                    verbose: bool = True):
-    """Fully enumerated, pruned candidate pool for one unit."""
+                    verbose: bool = True, w=None):
+    """Fully enumerated, pruned candidate pool for one unit (w = per-row
+    event counts for weighted rows)."""
     n_features = X_local.shape[1]
     if max_terms is None:
         max_terms = n_features
@@ -82,7 +83,7 @@ def build_unit_pool(X_local: np.ndarray, y: np.ndarray, mf: MFConfig,
 
     ants = enumerate_local_antecedents(n_features, max_terms)
     W = firing_matrix(M, ants)
-    conf, support, z = assign_consequents(W, y)
+    conf, support, z = assign_consequents(W, y, w)
     keep = (support >= min_support) & (np.abs(conf - 0.5) >= conf_margin)
     ants, z, conf, support = ants[keep], z[keep], conf[keep], support[keep]
     W = W[:, keep]
@@ -95,23 +96,23 @@ def build_unit_pool(X_local: np.ndarray, y: np.ndarray, mf: MFConfig,
 
 
 def build_all_pools(X: np.ndarray, y: np.ndarray, mf: MFConfig,
-                    min_support: float = 0.01, conf_margin: float = 0.15):
+                    min_support: float = 0.01, conf_margin: float = 0.15, w=None):
     """X: (n,7) raw v1..v7. Layer-1 pools built from raw features; the TOP
     pool is built from a REFERENCE ra/si/cx computed with every rule of
     the data-driven layer-1 pools on."""
     ra_pool = build_unit_pool(X[:, RA_IN], y, mf, "A",
-                              min_support=min_support, conf_margin=conf_margin)
+                              min_support=min_support, conf_margin=conf_margin, w=w)
     si_pool = build_unit_pool(X[:, SI_IN], y, mf, "B",
-                              min_support=min_support, conf_margin=conf_margin)
+                              min_support=min_support, conf_margin=conf_margin, w=w)
     cx_pool = build_unit_pool(X[:, CX_IN], y, mf, "C",
-                              min_support=min_support, conf_margin=conf_margin)
+                              min_support=min_support, conf_margin=conf_margin, w=w)
 
     ra_ref = sugeno_ac(ra_pool["W"], ra_pool["z"])
     si_ref = sugeno_ac(si_pool["W"], si_pool["z"])
     cx_ref = sugeno_ac(cx_pool["W"], cx_pool["z"])
     Xtop_ref = np.stack([ra_ref, si_ref, cx_ref], axis=1)
     top_pool = build_unit_pool(Xtop_ref, y, mf, "T",
-                               min_support=min_support, conf_margin=conf_margin)
+                               min_support=min_support, conf_margin=conf_margin, w=w)
     return ra_pool, si_pool, cx_pool, top_pool
 
 
@@ -162,9 +163,9 @@ def hfs_infer(X: np.ndarray, ra_pool, si_pool, cx_pool, top_pool, mask, mf,
 
 class HFSSelectionProblem(Problem):
     def __init__(self, ra_pool, si_pool, cx_pool, top_pool, y, mf,
-                ac_thr: float = 65.0, max_rules: int = 35, min_rules: int = 12):
+                ac_thr: float = 65.0, max_rules: int = 35, min_rules: int = 12, w=None):
         self.ra, self.si, self.cx, self.top = ra_pool, si_pool, cx_pool, top_pool
-        self.y, self.mf, self.ac_thr = y, mf, ac_thr
+        self.y, self.mf, self.ac_thr, self.w = y, mf, ac_thr, w
         self.max_rules, self.min_rules = max_rules, min_rules
         self.dims = pool_dims(ra_pool, si_pool, cx_pool, top_pool)
         n_constr = 2 if min_rules > 0 else 1
@@ -190,7 +191,7 @@ class HFSSelectionProblem(Problem):
             M_top = self.mf.memberships(Xtop)
             W_top = firing_matrix(M_top, self.top["antecedents"])
             ac = sugeno_ac(W_top, self.top["z"], subset=top_m)
-            f1, fpr, _ = f1_fpr(ac, self.y, self.ac_thr)
+            f1, fpr, _ = f1_fpr(ac, self.y, self.ac_thr, self.w)
             F[i] = [1.0 - f1, fpr, n / self.max_rules]
             G[i, 0] = n - self.max_rules
             if self.n_constr > 1:
@@ -206,10 +207,10 @@ def random_population_hfs(pool_size: int, pop_size: int, seed: int = 42,
 
 def run_nsga2_hfs(ra_pool, si_pool, cx_pool, top_pool, y, mf,
                   ac_thr: float = 65.0, max_rules: int = 35, min_rules: int = 12,
-                  pop_size: int = 150, n_gen: int = 250, seed: int = 42):
+                  pop_size: int = 150, n_gen: int = 250, seed: int = 42, w=None):
     problem = HFSSelectionProblem(ra_pool, si_pool, cx_pool, top_pool, y, mf,
                                   ac_thr=ac_thr, max_rules=max_rules,
-                                  min_rules=min_rules)
+                                  min_rules=min_rules, w=w)
     init = random_population_hfs(problem.n_var, pop_size, seed=seed)
     algo = NSGA2(pop_size=pop_size, sampling=init.astype(bool),
                 crossover=UniformCrossover(prob=0.9),
@@ -232,12 +233,12 @@ def _mask_names(pool, unit_mask):
 
 
 def hfs_pareto_table(masks, F, dims, ra_pool, si_pool, cx_pool, top_pool, mf,
-                     X_te, y_te, ac_thr):
+                     X_te, y_te, ac_thr, w_te=None):
     rows = []
     for i, mask in enumerate(masks):
         ra_m, si_m, cx_m, top_m = split_mask(mask, dims)
         ac_te, _ = hfs_infer(X_te, ra_pool, si_pool, cx_pool, top_pool, mask, mf, dims)
-        f1_te, fpr_te, cm_te = f1_fpr(ac_te, y_te, ac_thr)
+        f1_te, fpr_te, cm_te = f1_fpr(ac_te, y_te, ac_thr, w_te)
         rule_names = ("RA:" + ",".join(_mask_names(ra_pool, ra_m)) +
                      "|SI:" + ",".join(_mask_names(si_pool, si_m)) +
                      "|CX:" + ",".join(_mask_names(cx_pool, cx_m)) +

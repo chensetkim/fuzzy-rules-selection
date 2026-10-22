@@ -7,24 +7,19 @@
 #
 #   $LOG_PATH/foo.log  ->  $OUTPUT_PATH/foo.csv
 #
-# Edit the two paths below, or override them per run:
+# By default it parses every log in data/raw/ into data/processed/ (both flat;
+# the file names carry attacker count, scenario, environment and round).
+# Override the folders per run if needed:
 #
-#   LOG_PATH=../data/raw/logs/mobile/r1/6 OUTPUT_PATH=../data/processed/mobile/r1/6 ./parse_serial.sh
+#   LOG_PATH=/path/to/logs OUTPUT_PATH=/path/to/csvs ./parse_serial.sh
 #
 set -euo pipefail
 
 # Resolve paths relative to this script, not the caller's cwd.
 cd "$(dirname "$0")"
-#=======================================================================#
-# Run script with sub sub-folders.
-# for r in r2 r3; do for n in 3 6 9; do
-#   LOG_PATH=../data/raw/logs/mobile/$r/$n OUTPUT_PATH=../data/processed/mobile/$r/$n ./parse_serial.sh
-# done; done
-#=======================================================================#
 
-LOG_PATH="${LOG_PATH:-../data/raw/logs/static/r3/3}"    # folder holding the *.log files
-# Env folder must be lowercase mobile/static for common/real_data.py.
-OUTPUT_PATH="${OUTPUT_PATH:-../data/processed/static/r3/3}" # folder to write the *.csv files
+LOG_PATH="${LOG_PATH:-../data/raw}"                 # folder holding the *.log files
+OUTPUT_PATH="${OUTPUT_PATH:-../data/processed}"     # folder to write the *.csv files
 TIME_UNIT="${TIME_UNIT:-us}"                        # unit of the Cooja script's `time`
 
 #=======================================================================#

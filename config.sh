@@ -14,16 +14,16 @@ MAX_RULES="${MAX_RULES:-35}"                # 35
 MF_HIGH="${MF_HIGH:-50,80}"                 # High MF: 0 at 50 -> 100 at 80
 AC_THR="${AC_THR:-65}"                      # FUZZRID_TAU_Q_PCT
 ARITH="${ARITH:-int}"                       # int = mote's integer arithmetic, float = continuous model
+LABEL_START="${LABEL_START:-launch}"        # attack start for labels: launch (per attacker) or seconds, e.g. 300
 TEST_FRAC="${TEST_FRAC:-0.3}"               # 30% test data
 CONF_MARGIN="${CONF_MARGIN:-0.15}"          # confidence margin for rule selection
 POP="${POP:-$(q 20 150)}"                   # select + finalize
 GENS="${GENS:-$(q 5 250)}"                  # number of generations
-TRAIN_SAMPLE="${TRAIN_SAMPLE:-$(q 3000 40000)}" # number of training samples
+TRAIN_SAMPLE="${TRAIN_SAMPLE:-$(q 3000 0)}"   # training events for pool/NSGA-II; 0 = all (weighted rows)
 LOSO_POP="${LOSO_POP:-$(q 20 80)}"          # loso
 LOSO_GENS="${LOSO_GENS:-$(q 5 120)}"        # number of generations for loso
-LOSO_TRAIN="${LOSO_TRAIN:-$(q 3000 30000)}" # number of training samples for loso
+LOSO_TRAIN="${LOSO_TRAIN:-$(q 3000 0)}"     # same, for loso; 0 = all
 CSV_ROOT="${CSV_ROOT:-data/processed}"      # path to processed CSV data
-# Attack start for labelling is fixed at 300 s in common/real_data.py.
 
 # ---- method-specific (the pools are built differently) -----------------------
 CARS_MAX_TERMS="${CARS_MAX_TERMS:-4}"           # max number of terms in a CARS rule

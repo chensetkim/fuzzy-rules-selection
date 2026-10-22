@@ -20,17 +20,17 @@ from optimize import f1_fpr
 MU_FN = {1: "mu_L", 2: "mu_M", 3: "mu_H"}
 
 
-def base_metrics(mask, W, z, y, ac_thr):
+def base_metrics(mask, W, z, y, ac_thr, w=None):
     ac = sugeno_ac(W, z, subset=mask)
-    f1, fpr, cm = f1_fpr(ac, y, ac_thr)
+    f1, fpr, cm = f1_fpr(ac, y, ac_thr, w)
     return f1, fpr, cm
 
 
-def pareto_table(masks, F, pool, y_tr, W_te, y_te, ac_thr, names):
+def pareto_table(masks, F, pool, y_tr, W_te, y_te, ac_thr, names, w_tr=None, w_te=None):
     rows = []
     for i, mask in enumerate(masks):
-        f1_tr, fpr_tr, _ = base_metrics(mask, pool["W"], pool["z"], y_tr, ac_thr)
-        f1_te, fpr_te, cm = base_metrics(mask, W_te, pool["z"], y_te, ac_thr)
+        f1_tr, fpr_tr, _ = base_metrics(mask, pool["W"], pool["z"], y_tr, ac_thr, w_tr)
+        f1_te, fpr_te, cm = base_metrics(mask, W_te, pool["z"], y_te, ac_thr, w_te)
         rows.append(dict(base_id=i, n_rules=int(mask.sum()),
                          f1_train=round(f1_tr, 4), fpr_train=round(fpr_tr, 4),
                          f1_test=round(f1_te, 4), fpr_test=round(fpr_te, 4),

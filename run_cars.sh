@@ -16,7 +16,7 @@
 #   QUICK=1 ./run_cars.sh                  ~30 s per seed smoke test
 #   SEEDS="1 2 3 4 5" ./run_cars.sh        multi-seed; SUMMARY.md shows mean ± std
 #   MAX_RULES=30 SEED=7 ./run_cars.sh      any setting can be overridden
-#   ./run_cars.sh --parse                  also re-parse data/raw/logs -> data/processed
+#   ./run_cars.sh --parse                  also re-parse data/raw -> data/processed
 #   ./run_cars.sh --out outputs/cars/run_X --from loso
 #                                          resume an earlier run from a step
 #                                          (its config.txt is reused)
@@ -31,13 +31,13 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
 METHOD=cars
-RESULT_RE="knee base|^\[finalize\]"
+RESULT_RE="data ceiling|knee base|^\[finalize\]"
 # shellcheck disable=SC1091
 source scripts/run_common.sh
 
 COMMON=(--csv-root "$CSV_ROOT" --ac-thr "$AC_THR" --max-terms "$CARS_MAX_TERMS"
         --min-support "$CARS_MIN_SUPPORT" --conf-margin "$CONF_MARGIN"
-        --mf-high "$MF_HIGH" --arith "$ARITH" --min-rules "$MIN_RULES" --max-rules "$MAX_RULES")
+        --mf-high "$MF_HIGH" --arith "$ARITH" --label-start "$LABEL_START" --min-rules "$MIN_RULES" --max-rules "$MAX_RULES")
 
 # ---------------------------------------------------------------------------
 # 2-4. per seed: select, loso, finalize

@@ -124,27 +124,33 @@ If no rule fires, $AC=0$ ("no evidence → no attack").
 
 ### 3.1 Data and labelling ([`common/real_data.py`](../common/real_data.py))
 
-**Corpus.** The input CSVs live under `data/processed/{mobile,static}/r{1,2,3}/{3,6,9}/*-S{1..6}-*.csv`. The dimensions are:
+**Corpus.** The input CSVs are in the flat folder `data/processed/` (72 files); every label is in the file name, e.g. `3-1-21-9-150-S2-exp5438-mobile-3.csv` = 9 attackers, S2, mobile, round 3. The dimensions are:
 
 - environment: mobile or static;
 - round: three independent simulation repetitions;
 - attacker count: 3, 6 or 9;
 - attack type: S1–S6.
 
-**Attacker IDs.** These come from the attacker-count path segment: 3 → {29–31}, 6 → {26–31}, 9 → {23–31}.
+**Attacker IDs.** These come from the attacker count (4th field of the name): 3 → {29–31}, 6 → {26–31}, 9 → {23–31}.
 
 **Label.**
 
-$$y=1 \iff src\in\text{attackers} \;\wedge\; t\ge 300\,\text{s (attack launch)}$$
+$$y=1 \iff src\in\text{attackers} \;\wedge\; t\ge t_{\text{launch}}(src)$$
 
-**Two exclusion rules** (`load_real_events`, [`real_data.py:65`](../common/real_data.py#L65)):
+where $t_{\text{launch}}$ is that attacker's own `[ATK-LAUNCHED]` time (200.4–331.0 s; `data/attack_launch.csv`, from `scripts/extract_launch.py`). `LABEL_START=300` gives the former fixed start instead.
+
+**Two exclusion rules** (`load_real_events`, [`real_data.py:74`](../common/real_data.py#L74)):
 
 1. *Rows observed **by** an attacker are dropped.* An attacker does not run the IDS honestly, so its observations are not evidence the real system would use.
 2. *Rows observed **of** an attacker before launch are dropped*, not labelled benign. Before launch the attacker behaves honestly. Labelling those rows either way would put label noise into an unlearnable region.
 
-**Static de-duplication.** The static simulation is deterministic, so static r1/r2/r3 are byte-identical files. Only static r1 is loaded; otherwise every static row would be counted three times.
+**Rounds.** All three mobile rounds are used (independent mobility realisations). The static simulation is deterministic, so its three rounds were byte-identical; only static round 1 is kept in `data/`, since copies would count every static row three times.
 
-**Clean corpus:** 388,338 detection events (83,781 attack / 304,557 benign, 21.6 % positive).
+**Clean corpus:** 390,201 detection events (85,644 attack / 304,557 benign, 21.9 % positive).
+
+**Weighted rows.** Events with the same evidence vector and label are collapsed into one row weighted by its event count (`compress`). Every count-based quantity (confidence, support, F1, FPR) is unchanged, so this is lossless; it shrinks the primary training partition from 273,138 events to 31,138 rows, so selection uses the **whole** training partition instead of a sample.
+
+**Data ceiling.** Identical vectors carry both labels, so no classifier of $v_1..v_7$ can exceed F1 ≈ 0.988 on these test sets (`vector_ceiling`, reported in every `SUMMARY.md`).
 
 ### 3.2 Candidate pool ([`candidates.py`](../common/candidates.py))
 
@@ -157,7 +163,7 @@ Two generators feed one pool. They complement each other.
 - This anchors the pool in the regions of the $3^7$ grid that the data actually occupies.
 - It deviates from textbook Wang–Mendel: there is no rule degree, and conflicts are resolved by the consequent step below.
 
-**Generator B: bounded enumeration** (`enumerate_antecedents`, [`candidates.py:49`](../common/candidates.py#L49)).
+**Generator B: bounded enumeration** (`enumerate_antecedents`, [`candidates.py:53`](../common/candidates.py#L53)).
 
 - It generates every antecedent that specifies 1 to 4 features:
 
@@ -167,7 +173,7 @@ $$\sum_{k=1}^{4}\binom{7}{k}3^k = 21+189+945+2835 = 3990 \text{ rules}$$
 - Without it, short, readable rules (1–4 terms) could not be reached.
 - The 4-term cap is an interpretability limit.
 
-**Consequent assignment: Ishibuchi certainty grade** (`assign_consequents`, [`candidates.py:61`](../common/candidates.py#L61)). The training set is used for this:
+**Consequent assignment: Ishibuchi certainty grade** (`assign_consequents`, [`candidates.py:65`](../common/candidates.py#L65)). The training set is used for this:
 
 $$
 \mathrm{conf}(r)=\frac{\sum_{x:y=1}w_r(x)}{\sum_x w_r(x)},\qquad
@@ -177,7 +183,7 @@ $$
 
 Confidence is the firing-weighted share of attack samples the rule covers. Support is the rule's mean firing strength.
 
-**Pruning** ([`candidates.py:95`](../common/candidates.py#L95)). A candidate is kept only if both conditions hold:
+**Pruning** ([`candidates.py:105`](../common/candidates.py#L105)). A candidate is kept only if both conditions hold:
 
 $$\mathrm{supp}(r)\ge 0.005 \quad\text{and}\quad |\mathrm{conf}(r)-0.5|\ge 0.15$$
 
@@ -193,7 +199,7 @@ size is printed in each run's `select.log`.
 
 **Encoding.** A chromosome is a binary vector of length $|P|$, several hundred candidates. Bit $j$ = 1 means "rule $j$ is in the base". The space has $2^{|P|}$ subsets, so exhaustive search is impossible and a metaheuristic is justified.
 
-**Objectives, all minimised** (`RuleSelectionProblem._evaluate`, [`optimize.py:56`](../common/optimize.py#L56)):
+**Objectives, all minimised** (`RuleSelectionProblem._evaluate`, [`optimize.py:64`](../common/optimize.py#L64)):
 
 | | Objective | Reason |
 |---|---|---|
@@ -211,9 +217,9 @@ size is printed in each run's `select.log`.
 | Crossover | Uniform, $p=0.9$ | rules are an unordered set, so bit position carries no locality |
 | Mutation | Bit-flip, $1/n_{var}$ per bit | about one flip per individual |
 | Duplicates | eliminated | keeps diversity on a plateau-heavy landscape |
-| Fitness data | 40,000-row stratified subsample of the train split | makes the firing matrix tractable; all reported metrics use the **full** test split |
+| Fitness data | the whole train split as weighted rows (≈ 31,000 rows) | lossless and cheaper than the former 40,000-event sample; all reported metrics use the **full** test split |
 
-**Random initial population** (`random_population`, [`optimize.py:76`](../common/optimize.py#L76)):
+**Random initial population** (`random_population`, [`optimize.py:84`](../common/optimize.py#L84)):
 every individual is a sparse random subset (each rule on with probability 0.02). No
 rule base is seeded.
 
@@ -221,7 +227,7 @@ rule base is seeded.
 
 NSGA-II returns a front of non-dominated bases. Two pickers exist:
 
-- **Knee pick** (`knee_solution`, [`optimize.py:104`](../common/optimize.py#L104)).
+- **Knee pick** (`knee_solution`, [`optimize.py:112`](../common/optimize.py#L112)).
   - Each objective is min-max normalised, then weighted $0.6/0.3/0.1$ (F1 / FPR / size) and summed; the minimum wins.
   - It uses **training objectives only**.
   - Despite the name, this is a preference-weighted scalarisation, not a geometric knee.
@@ -264,9 +270,9 @@ scores are the mote's own AC values.
 
 | Split | Train | Test | Question |
 |---|---|---|---|
-| **Primary** ([`real_data.py:153`](../common/real_data.py#L153)) | 70 % of each scenario, shuffled | remaining 30 % | held-out accuracy |
-| **Round-holdout** ([`real_data.py:170`](../common/real_data.py#L170)) | mobile r1+r2, static r1 | mobile **r3** | does it transfer to a fresh mobility realisation? |
-| **LOSO** ([`real_data.py:179`](../common/real_data.py#L179)) | 5 of 6 attack types | the 6th | does it transfer to an **unseen attack type**? |
+| **Primary** ([`real_data.py:200`](../common/real_data.py#L200)) | 70 % of each scenario, shuffled | remaining 30 % | held-out accuracy |
+| **Round-holdout** ([`real_data.py:217`](../common/real_data.py#L217)) | mobile r1+r2, static r1 | mobile **r3** | does it transfer to a fresh mobility realisation? |
+| **LOSO** ([`real_data.py:226`](../common/real_data.py#L226)) | 5 of 6 attack types | the 6th | does it transfer to an **unseen attack type**? |
 
 Each split is a complete, independent re-run of pool building and NSGA-II. The primary
 split shuffles rows *within* each run, so autocorrelated neighbouring events can fall on
@@ -315,11 +321,11 @@ same L/M/H sets before entering TOP.
 - **Consequents.** Same Ishibuchi certainty grade as CARS.
 - **Pruning.** A support floor of 0.01 (vs 0.005 in CARS) and the same 0.15 confidence margin.
 - **No hand-crafted rules**, as in CARS.
-- **TOP pool reference signal.** The TOP pool has a special problem: its inputs (RA, SI, CX) depend on which layer-1 rules are selected. So TOP consequents are assigned against a *reference* signal: the outputs of the generated layer-1 pools with all their rules on (`build_all_pools`, [`hfs_pipeline.py:97`](../methods/thfis/hfs_pipeline.py#L97)).
+- **TOP pool reference signal.** The TOP pool has a special problem: its inputs (RA, SI, CX) depend on which layer-1 rules are selected. So TOP consequents are assigned against a *reference* signal: the outputs of the generated layer-1 pools with all their rules on (`build_all_pools`, [`hfs_pipeline.py:98`](../methods/thfis/hfs_pipeline.py#L98)).
 
 Pool sizes per unit are printed in each run's `select.log`.
 
-### 4.3 Joint NSGA-II ([`hfs_pipeline.py:163`](../methods/thfis/hfs_pipeline.py#L163))
+### 4.3 Joint NSGA-II ([`hfs_pipeline.py:164`](../methods/thfis/hfs_pipeline.py#L164))
 
 - **Chromosome.** The concatenation `[RA | SI | CX | TOP]` of the four unit masks.
 - **Fitness.** Every evaluation runs the **real two-layer inference**. RA, SI and CX are recomputed from whichever layer-1 rules that individual switched on, re-fuzzified, and then fed through that individual's TOP rules.

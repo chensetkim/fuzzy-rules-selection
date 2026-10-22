@@ -10,10 +10,12 @@ Run everything with `./run_cars.sh` from the repo root (settings in `config.sh`)
 ## Pipeline
 
 ```
-data/processed/{mobile,static}/r*/{3,6,9}/*.csv   (scripts/parse_serial.py output)
+data/processed/*.csv   (scripts/parse_serial.py output; labels in the file names)
         │
         ▼
- common/real_data.py  label: y=1 iff src ∈ attackers AND t ≥ 300 s
+ common/real_data.py  label: y=1 iff src ∈ attackers AND t ≥ that attacker's launch
+                      (data/attack_launch.csv); identical (vector, label) events
+                      -> one weighted row (lossless, ~9x fewer rows)
                       splits: primary (70/30 per scenario), round-holdout (mobile r3),
                       leave-one-scenario-out (S1..S6)
         ▼

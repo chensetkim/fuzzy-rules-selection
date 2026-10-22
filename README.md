@@ -27,8 +27,15 @@ scripts/          parse_serial.py/.sh (log -> CSV), install_lib.sh,
 config.sh         settings shared by run_cars.sh and run_thfis.sh
 
 data/
-  raw/logs/{mobile,static}/r{1,2,3}/{3,6,9}/*.log    Cooja serial logs
-  processed/{mobile,static}/r{1,2,3}/{3,6,9}/*.csv   parsed event CSVs (input to both methods)
+  raw/          72 Cooja serial logs (flat)
+  processed/    72 parsed event CSVs, same names (input to both methods)
+                name = <..>-<atkcount>-<..>-S<k>-exp<id>[-mobile]-<round>, e.g.
+                3-1-21-9-150-S2-exp5438-mobile-3 = 9 attackers, S2, mobile, round 3.
+                Mobile rounds 1-3 are kept; static has round 1 only (rounds 2-3 were
+                byte-identical copies of a deterministic simulation)
+  attackers.txt attacker mote IDs per attacker count
+  attack_launch.csv  each attacker's launch time per run (scripts/extract_launch.py);
+                labels start there (LABEL_START=launch, the default)
   archive/backup/   local backup zip of the CSVs (untracked)
 
 outputs/
@@ -36,7 +43,8 @@ outputs/
   thfis/run_<date>_<time>/   one folder per run_thfis.sh run
   legacy_2026-09/            results quoted in reports/, made with the old settings (see its README)
 
-reports/          write-ups and results (start with offline-rule-selection-methods.md)
+reports/          write-ups and results (start with offline-rule-selection-methods.md;
+                  data cleaning: data-cleaning-rules.md)
 ```
 
 ## Running
@@ -57,8 +65,8 @@ run from anywhere.
 ./scripts/install_lib.sh                       # once: numpy, pandas, pymoo into .venv
 source .venv/bin/activate
 
-# Cooja logs -> CSVs (one folder at a time; see the script header for a loop)
-LOG_PATH=../data/raw/logs/mobile/r1/6 OUTPUT_PATH=../data/processed/mobile/r1/6 ./scripts/parse_serial.sh
+# Cooja logs -> CSVs (all of data/raw -> data/processed)
+./scripts/parse_serial.sh
 
 # CARS
 python3 methods/cars/run_real_selection.py     # -> outputs/cars/{primary,round_holdout}/

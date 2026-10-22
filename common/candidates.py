@@ -33,12 +33,16 @@ from fuzzy import (N_FEATURES, DONT_CARE, Z_LEVELS, MFConfig,
                    firing_matrix)
 
 
-def wang_mendel_antecedents(M: np.ndarray, max_rules: int | None = None) -> np.ndarray:
+def wang_mendel_antecedents(M: np.ndarray, max_rules: int | None = None, w=None) -> np.ndarray:
     """Full-antecedent WM rules: per sample, term = argmax membership per
     feature. Returns unique (n,7) int8 antecedents (terms 1..3, no
-    don't-cares)."""
+    don't-cares), ranked by occupancy (w = per-row event counts)."""
     terms = M.argmax(axis=2) + 1                     # (n_samples, 7) in 1..3
-    uniq, counts = np.unique(terms, axis=0, return_counts=True)
+    if w is None:
+        uniq, counts = np.unique(terms, axis=0, return_counts=True)
+    else:
+        uniq, inv = np.unique(terms, axis=0, return_inverse=True)
+        counts = np.bincount(inv.ravel(), weights=w).astype(np.int64)
     order = np.argsort(-counts)
     uniq = uniq[order]
     if max_rules is not None:
@@ -58,13 +62,18 @@ def enumerate_antecedents(max_terms: int = 4) -> np.ndarray:
     return np.array(rows, dtype=np.int8)
 
 
-def assign_consequents(W: np.ndarray, y: np.ndarray):
-    """conf, support, z for each candidate given firing matrix W and labels y."""
-    w_pos = W[y == 1].sum(axis=0)
-    w_all = W.sum(axis=0)
+def assign_consequents(W: np.ndarray, y: np.ndarray, w=None):
+    """conf, support, z for each candidate given firing matrix W and labels y
+    (w = per-row event counts; None = one event per row)."""
+    if w is None:
+        w_pos = W[y == 1].sum(axis=0)
+        w_all = W.sum(axis=0)
+    else:                                   # weighted sums without copying W
+        w_pos = (w * (y == 1)) @ W
+        w_all = w @ W
     with np.errstate(divide="ignore", invalid="ignore"):
         conf = np.where(w_all > 0, w_pos / w_all, 0.0)
-    support = w_all / max(len(y), 1)
+    support = w_all / max(len(y) if w is None else float(np.sum(w)), 1)
     z = Z_LEVELS[np.abs(conf[:, None] * 100 - Z_LEVELS[None, :]).argmin(axis=1)]
     return conf, support, z.astype(np.float64)
 
@@ -74,13 +83,14 @@ def build_pool(X: np.ndarray, y: np.ndarray, mf: MFConfig,
                min_support: float = 0.005,
                conf_margin: float = 0.15,
                wm_max_rules: int = 200,
-               verbose: bool = True):
+               verbose: bool = True, w=None):
     """Returns dict with antecedents (P,7), z (P,), conf, support, names,
-    and the precomputed firing matrix W (n,P)."""
+    and the precomputed firing matrix W (n,P). w = per-row event counts
+    when X holds weighted rows (real_data.compress)."""
     M = mf.memberships(X)
 
     ants_enum = enumerate_antecedents(max_terms)
-    ants_wm = wang_mendel_antecedents(M, max_rules=wm_max_rules)
+    ants_wm = wang_mendel_antecedents(M, max_rules=wm_max_rules, w=w)
     ants = np.concatenate([ants_enum, ants_wm], axis=0)
     src = (["enum"] * len(ants_enum)) + (["wm"] * len(ants_wm))
 
@@ -90,7 +100,7 @@ def build_pool(X: np.ndarray, y: np.ndarray, mf: MFConfig,
     src = [src[i] for i in uniq_idx]
 
     W = firing_matrix(M, ants)
-    conf, support, z = assign_consequents(W, y)
+    conf, support, z = assign_consequents(W, y, w)
 
     keep = (support >= min_support) & (np.abs(conf - 0.5) >= conf_margin)
     ants, z, conf, support = ants[keep], z[keep], conf[keep], support[keep]

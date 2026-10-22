@@ -79,36 +79,45 @@ arguments, and builds `MFConfig(high=(c, d))` from `--mf-high`.
 
 ### 3.1 Corpus layout
 
-`load_real_events` ([`real_data.py:65`](../common/real_data.py#L65)) walks
+`load_real_events` ([`real_data.py:74`](../common/real_data.py#L74)) reads every CSV in the
+flat folder `data/processed/` (72 files) and takes four labels from the **file name**:
 
 ```
-data/processed/{mobile,static}/r{1,2,3}/{3,6,9}/<sim-id>-S<k>-exp<id>[-mobile]-<round>.csv
+data/processed/<a>-<b>-<honest>-<atkcount>-<c>-S<k>-exp<id>[-mobile]-<round>.csv
+e.g.  3-1-21-9-150-S2-exp5438-mobile-3.csv  ->  9 attackers, S2, mobile, round 3
 ```
 
-and takes four labels from the path: environment (mobile/static), round (r1–r3, independent
-simulation repetitions), attacker count (3/6/9) and attack type (S1–S6, from the filename).
+attacker count (3/6/9, the 4th field), attack type (S1–S6), environment (`-mobile` present or
+not) and round (independent simulation repetitions). Files are read in a fixed order (static
+first, then round, attacker count, name), because the row order seeds the primary split.
 Rows with `type == detection` are kept and $v_1..v_7$, `t`, `src`, `mote_id` are coerced to
 numbers; unparseable rows are dropped.
 
-**Attacker IDs** come from the attacker-count folder: 3 → {29–31}, 6 → {26–31},
-9 → {23–31} (`ATK_NODES_BY_COUNT`). They match the `Starting 2H-FuzzRID attacker` boot lines in
+**Attacker IDs** come from the attacker count: 3 → {29–31}, 6 → {26–31}, 9 → {23–31}
+(`ATK_NODES_BY_COUNT`, also in `data/attackers.txt`). They match the `Starting 2H-FuzzRID attacker` boot lines in
 every raw log.
 
-**Static de-duplication.** The static simulation is deterministic: static r1, r2 and r3 are
-byte-identical files (checked by hash). Only static r1 is loaded; otherwise every static row
-would be counted three times and bias support, confidence and the split balance. Mobile
-rounds differ in their random mobility realisation and are all loaded. Of the 108 CSVs,
-72 are used.
+**Rounds.** The static simulation is deterministic: its three rounds were byte-identical
+(all 36 CSVs and 36 logs checked by hash), so only static round 1 is kept in `data/`; loading
+copies would count every static row three times and bias support, confidence and the split
+balance. Mobile rounds differ in their random mobility realisation and all three are kept:
+54 mobile + 18 static CSVs.
 
 ### 3.2 The labelling rule
 
 ```python
-y = 1  iff  src ∈ attackers(atkcount)  AND  t >= 300      # t in seconds
+y = 1  iff  src ∈ attackers(atkcount)  AND  sim_ms >= launch_ms(run, src)
 ```
 
-Ground truth comes from simulation knowledge of which motes are malicious, matching the
-convention used by `compute_metrics.py` so that offline selection and online evaluation agree.
-The attack phase start is a fixed 300 s (`atk_start_s`).
+Ground truth comes from simulation knowledge of which motes are malicious. The attack phase of
+each attacker starts at **its own launch time**: every attacker prints one `[ATK-LAUNCHED]`
+line when its attack starts, and `scripts/extract_launch.py` collects these into
+`data/attack_launch.csv` (one row per attacker and run: `run, mote_id, launch_ms`). All 432
+attackers in the 72 logs have exactly one launch line, between 200.4 s and 331.0 s.
+
+`LABEL_START` (`--label-start`, default `launch`) selects the rule; a number instead applies one
+fixed start to every attacker — `LABEL_START=300` reproduces the earlier fixed-300 s labels
+exactly (same events, same hash).
 
 ### 3.3 Two deliberate row-exclusion policies
 
@@ -117,22 +126,21 @@ Both are on by default, and both are methodologically load-bearing:
 1. **Attacker observers** (`drop_attacker_observers`) — rows whose *observer* (`mote_id`) is
    an attacker are dropped. An attacker does not run the IDS honestly; its observations are
    not evidence the real system would act on.
-2. **Pre-attack attacker rows** (`drop_prelaunch_attacker_rows`) — observations *of* an
-   attacker before 300 s are dropped, not labelled benign. Before launch the attacker behaves
-   honestly, so its evidence looks benign: $y=0$ would be correct but useless, $y=1$ would
-   be label noise. Dropping the rows avoids forcing the optimiser to fit an unlearnable
-   region. This removes 9,577 rows.
+2. **Pre-launch attacker rows** (`drop_prelaunch_attacker_rows`) — observations *of* an
+   attacker before its launch are dropped, not labelled benign. Before launch the attacker
+   behaves honestly, so its evidence looks benign: $y=0$ would be correct but useless, $y=1$
+   would be label noise. Dropping the rows avoids forcing the optimiser to fit an unlearnable
+   region. This removes 7,714 rows.
 
 > **Justification.** Both avoid what Arp et al. call *spurious correlations* and *biased
 > parameter selection* — constructing a training distribution the deployed system will never
 > see [8].
 
-In the raw logs, 646 of the 648 attacker activations (`[ATK-LAUNCHED]`) fall between 200 s
-and 299 s, so attacker rows between activation and 300 s are among the dropped ones (moving
-the start to 200 s would add 1,874 attack rows, +2.2 %). Two activations occur at 329 s and
-330 s, so up to 30 s of those attackers' honest behaviour is labelled malicious.
+Compared with a fixed 300 s start, per-attacker launch times add 1,863 attack events (attack
+behaviour between a launch before 300 s and 300 s, previously dropped) and stop labelling up
+to 30 s of honest behaviour as attack for the two attackers that launch at 329 s and 330 s.
 
-**Clean corpus:** 388,338 detection events, 83,781 attack / 304,557 benign (21.6 % positive).
+**Clean corpus:** 390,201 detection events, 85,644 attack / 304,557 benign (21.9 % positive).
 
 ### 3.4 Validation splits
 
@@ -141,23 +149,51 @@ partition:
 
 | Split | Function | Train | Test | Question |
 |---|---|---|---|---|
-| **Primary** | `stratified_scenario_split` ([`real_data.py:153`](../common/real_data.py#L153)) | 70 % of each scenario, shuffled (271,834 events) | remaining 30 % (116,504) | held-out accuracy |
-| **Round-holdout** | `round_holdout_split` ([`real_data.py:170`](../common/real_data.py#L170)) | mobile r1+r2, static r1 (292,649) | mobile **r3** (95,689) | transfer to a fresh mobility realisation |
-| **LOSO** | `scenario_holdout_split` ([`real_data.py:179`](../common/real_data.py#L179)) | 5 of 6 attack types | the 6th | transfer to an **unseen attack type** |
+| **Primary** | `stratified_scenario_split` ([`real_data.py:200`](../common/real_data.py#L200)) | 70 % of each scenario, shuffled (273,138 events) | remaining 30 % (117,063) | held-out accuracy |
+| **Round-holdout** | `round_holdout_split` ([`real_data.py:217`](../common/real_data.py#L217)) | mobile r1+r2, static r1 (294,308) | mobile **r3** (95,893) | transfer to a fresh mobility realisation |
+| **LOSO** | `scenario_holdout_split` ([`real_data.py:226`](../common/real_data.py#L226)) | 5 of 6 attack types | the 6th | transfer to an **unseen attack type** |
 
 > ⚠️ **The primary split is optimistic.** Shuffling *within* a scenario puts consecutive,
 > strongly autocorrelated events from the same node, attack window and simulation run on both
 > sides of the split, so the held-out set is not independent [8]. Round-holdout and LOSO exist
 > to measure how much; report them alongside the primary number, never the primary number alone.
 
-### 3.5 The training sample
+### 3.5 Weighted rows: the whole training partition, cheaply
 
-Pool building and NSGA-II fitness do not use the whole training partition. `stratified_subsample`
-([`real_data.py:193`](../common/real_data.py#L193)) draws `TRAIN_SAMPLE` events (40,000 for
-select and finalize, 30,000 for LOSO) without replacement from every
-(scenario × environment × attacker count × round) cell, in proportion to cell size and with at
-least one event per cell. This keeps the firing matrix tractable. **All reported test metrics
-use the full test partition.**
+The fuzzy inference depends only on $v_1..v_7$, and only about 10 % of events have a distinct
+vector. `compress` ([`real_data.py:175`](../common/real_data.py#L175)) therefore collapses
+events with the same vector **and** label into one row with weight $w$ = its event count.
+Every count-based quantity — confidence, support, Wang–Mendel occupancy, F1, FPR — is computed
+with these weights, so it equals the value on the raw events: the compression is **lossless**.
+On the same data the weighted code reproduces the unweighted code bit for bit (every rule base
+and Pareto front identical, both methods).
+
+This lets pool building and NSGA-II fitness use the **whole training partition** instead of a
+random sample, at lower cost:
+
+| | Events | Weighted rows |
+|---|---|---|
+| Primary train / test | 273,138 / 117,063 | 31,138 / 17,056 |
+| Round-holdout train / test | 294,308 / 95,893 | 33,090 / 12,912 |
+
+On the CARS primary + round-holdout selection (pop 150, 10 generations), the full training
+partition as weighted rows ran 27 % faster and used 20 % less memory than the former
+40,000-event random sample, while using 7× more training events. No sampling noise is left, and
+rare evidence regions (e.g. the v7 forgery cases) are no longer lost to the sample.
+
+`TRAIN_SAMPLE` / `LOSO_TRAIN` (`--train-sample`, default 0 = whole partition) still allow a
+stratified sample (`stratified_subsample`, [`real_data.py:240`](../common/real_data.py#L240));
+`QUICK=1` uses 3,000 events for smoke tests. Test metrics always use the full test partition
+(also as weighted rows).
+
+### 3.6 The data ceiling
+
+`vector_ceiling` ([`real_data.py:186`](../common/real_data.py#L186)) predicts every distinct vector
+of the test set as its majority label: the best F1 **any** classifier of $v_1..v_7$ can reach
+on those events, since identical vectors carry both labels. It is about 0.988 on the primary and
+round-holdout test sets (0.9875 on all data, FPR 0.0026). Each `selected_rules.txt` and the
+`Ceiling F1` column of `SUMMARY.md` report it; a result at or near it on the same events points
+to leakage rather than a better rule base.
 
 ---
 
@@ -230,8 +266,8 @@ counts used everywhere below.
 
 ## 5. Stage 3 — Candidate pool construction (`common/candidates.py`)
 
-`build_pool` ([`candidates.py:72`](../common/candidates.py#L72)) runs on the training sample
-(§3.5). Two generators feed one pruned pool; they are complementary.
+`build_pool` ([`candidates.py:81`](../common/candidates.py#L81)) runs on the weighted training
+rows (§3.5). Two generators feed one pruned pool; they are complementary.
 
 ### 5.1 Generator A — Wang–Mendel-style cells
 
@@ -256,7 +292,7 @@ occupies.
 
 ### 5.2 Generator B — bounded exhaustive enumeration
 
-`enumerate_antecedents` ([`candidates.py:49`](../common/candidates.py#L49)) generates every
+`enumerate_antecedents` ([`candidates.py:53`](../common/candidates.py#L53)) generates every
 antecedent that specifies 1 to `max_terms` (`CARS_MAX_TERMS`, default 4) features:
 
 $$\sum_{k=1}^{4} \binom{7}{k} 3^k = 21 + 189 + 945 + 2835 = \mathbf{3990}$$
@@ -272,8 +308,8 @@ the two sets cannot overlap.
 
 ### 5.3 Consequent assignment — certainty grade
 
-`assign_consequents` ([`candidates.py:61`](../common/candidates.py#L61)), over the training
-sample only:
+`assign_consequents` ([`candidates.py:65`](../common/candidates.py#L65)), over the training
+events only:
 
 $$\text{conf}(r) = \frac{\sum_{x : y=1} w_r(x)}{\sum_{x} w_r(x)}, \qquad
 \text{supp}(r) = \frac{\sum_{x} w_r(x)}{n}, \qquad
@@ -282,13 +318,14 @@ z_r = \arg\min_{z \in \{0,25,50,75,100\}} \left| 100 \cdot \text{conf}(r) - z \r
 with ties resolved toward the smaller $z$. Confidence is the firing-weighted fraction of
 attacks among the events the rule covers — Ishibuchi's *certainty grade* for classification
 rules [3, 4]. Support is the mean firing strength (a fuzzy cardinality divided by $n$), not a
-count of matching rows. With `ARITH=int` the firing strengths are the integer ones, so
+count of matching rows. With weighted rows every sum is weighted by the event count and $n$ is
+the number of events. With `ARITH=int` the firing strengths are the integer ones, so
 consequents are fitted on the arithmetic the mote will run.
 
 ### 5.4 Pruning
 
 ```python
-keep = (support >= min_support) & (np.abs(conf - 0.5) >= conf_margin)      # candidates.py:95
+keep = (support >= min_support) & (np.abs(conf - 0.5) >= conf_margin)      # candidates.py:105
 ```
 
 Defaults `CARS_MIN_SUPPORT = 0.005`, `CONF_MARGIN = 0.15`:
@@ -303,9 +340,9 @@ Defaults `CARS_MIN_SUPPORT = 0.005`, `CONF_MARGIN = 0.15`:
 > margin is measured from 0.5, not from the training attack prior (≈ 0.21), so a rule whose
 > confidence equals the prior counts as benign evidence ($z = 25$).
 
-**On the primary split** (40,000-event sample, defaults): 3,990 enumerated + 148 Wang–Mendel
-cells → **731 candidates** after pruning (20 of them Wang–Mendel), with consequents
-$z = 0$: 157, $z = 25$: 89, $z = 75$: 221, $z = 100$: 264.
+**On the primary split** (whole training partition, defaults): 3,990 enumerated + 200
+Wang–Mendel cells (the cap) → **743 candidates** after pruning (20 of them Wang–Mendel), with
+consequents $z = 0$: 157, $z = 25$: 93, $z = 75$: 221, $z = 100$: 272.
 
 ---
 
@@ -313,18 +350,18 @@ $z = 0$: 157, $z = 25$: 89, $z = 75$: 221, $z = 100$: 264.
 
 ### 6.1 Problem encoding
 
-A chromosome is a binary vector of length $|P|$ (731 on the primary split); bit $j$ = "rule $j$
-is in the base". The search space has $2^{731} \approx 10^{220}$ subsets — exhaustive search is
+A chromosome is a binary vector of length $|P|$ (743 on the primary split); bit $j$ = "rule $j$
+is in the base". The search space has $2^{743} \approx 10^{224}$ subsets — exhaustive search is
 not available, which justifies a metaheuristic.
 
 ### 6.2 Objectives (all minimised)
 
-`RuleSelectionProblem._evaluate` ([`optimize.py:56`](../common/optimize.py#L56)) evaluates the
-firing matrix of the training sample, computed once:
+`RuleSelectionProblem._evaluate` ([`optimize.py:64`](../common/optimize.py#L64)) evaluates the
+firing matrix of the weighted training rows, computed once:
 
 | | Objective | Why it is in the model |
 |---|---|---|
-| $f_1$ | $1 - F_1(\text{train})$ | Detection quality under class imbalance (21.6 % attacks); plain accuracy would be dominated by the benign majority. |
+| $f_1$ | $1 - F_1(\text{train})$ | Detection quality under class imbalance (21.9 % attacks); plain accuracy would be dominated by the benign majority. |
 | $f_2$ | $\text{FPR}(\text{train})$ | The deployment cost, kept as its own axis (below). |
 | $f_3$ | $\lvert S \rvert / \texttt{max\_rules}$ | RAM/flash budget on the Z1/MSP430, and interpretability. |
 
@@ -345,7 +382,7 @@ infeasibility by constraint domination.
 
 ### 6.3 Algorithm
 
-`run_nsga2` ([`optimize.py:83`](../common/optimize.py#L83)), NSGA-II [2] via pymoo [10]:
+`run_nsga2` ([`optimize.py:91`](../common/optimize.py#L91)), NSGA-II [2] via pymoo [10]:
 
 | Component | Setting (select / LOSO) | Note |
 |---|---|---|
@@ -359,8 +396,8 @@ niching parameter to tune [2].
 
 ### 6.4 Initial population
 
-`random_population` ([`optimize.py:76`](../common/optimize.py#L76)): every individual is a
-sparse random subset, each rule switched on with probability 0.02 (≈ 15 rules on a 731-rule
+`random_population` ([`optimize.py:84`](../common/optimize.py#L84)): every individual is a
+sparse random subset, each rule switched on with probability 0.02 (≈ 15 rules on a 743-rule
 pool). **No rule base is seeded.** Seeding a prior rule base into generation 0 is the usual
 way to inject expert knowledge into a genetic fuzzy system [6]; it is deliberately not done,
 so the selected base depends on the data alone.
@@ -371,7 +408,7 @@ so the selected base depends on the data alone.
 
 ### 7.1 The knee pick
 
-`knee_solution` ([`optimize.py:104`](../common/optimize.py#L104)):
+`knee_solution` ([`optimize.py:112`](../common/optimize.py#L112)):
 
 ```python
 Fn = (F - F.min(axis=0)) / (np.ptp(F, axis=0) + 1e-12)
@@ -456,20 +493,20 @@ own AC values. (T-HFIS goes one step further and exports a complete, compilable
 
 | Setting | Default (QUICK=1) | Flag | Effect |
 |---|---|---|---|
-| `SEEDS` | `42` | `--seed` | Space-separated list; one `seed_<s>/` per seed. Seeds the split, the training sample, the initial population and NSGA-II together. |
+| `SEEDS` | `42` | `--seed` | Space-separated list; one `seed_<s>/` per seed. Seeds the split, the initial population and NSGA-II (and the training sample, if one is used) together. |
 | `MIN_RULES` / `MAX_RULES` | 12 / 35 | `--min-rules` / `--max-rules` | Rule budget; `MAX_RULES` also normalises $f_3$ |
 | `MF_HIGH` | `50,80` | `--mf-high` | High-set breakpoints (§4.1) |
 | `AC_THR` | 65 | `--ac-thr` | Detection threshold $\tau$ |
 | `ARITH` | `int` | `--arith` | `int` = mote arithmetic, `float` = continuous model (§4.3) |
+| `LABEL_START` | `launch` | `--label-start` | Attack start for labels: `launch` = each attacker's own launch time, or seconds (e.g. `300`) (§3.2) |
 | `TEST_FRAC` | 0.3 | `--test-frac` | Primary-split test fraction per scenario |
 | `CONF_MARGIN` | 0.15 | `--conf-margin` | Pruning margin; see §5.4 for the $z=50$ side effect |
 | `CARS_MIN_SUPPORT` | 0.005 | `--min-support` | Pruning floor |
 | `CARS_MAX_TERMS` | 4 | `--max-terms` | Enumeration bound; cost is $\sum_k \binom{7}{k}3^k$ — 5 terms gives 9,093 |
 | `POP` / `GENS` | 150 / 250 (20 / 5) | `--pop` / `--gens` | NSGA-II budget for select |
-| `TRAIN_SAMPLE` | 40,000 (3,000) | `--train-sample` | Training sample for select and finalize (§3.5) |
-| `LOSO_POP` / `LOSO_GENS` / `LOSO_TRAIN` | 80 / 120 / 30,000 (20 / 5 / 3,000) | (LOSO) | Same, for the six LOSO folds |
+| `TRAIN_SAMPLE` | 0 = whole partition (3,000) | `--train-sample` | Training events for select and finalize (§3.5) |
+| `LOSO_POP` / `LOSO_GENS` / `LOSO_TRAIN` | 80 / 120 / 0 (20 / 5 / 3,000) | (LOSO) | Same, for the six LOSO folds |
 | `CSV_ROOT` | `data/processed` | `--csv-root` | Input corpus |
-| — | 300 s | (fixed) | Attack-phase start for labelling (§3.2) |
 
 ---
 
@@ -504,19 +541,18 @@ Carry these into the paper's limitations section.
 
 1. **Non-independent primary split** (§3.4). The primary number is optimistic by an amount
    only round-holdout and LOSO can bound. [8]
-2. **Seeds.** One seed fixes the split, the training sample, the initial population and
-   NSGA-II together. Run several (`SEEDS="1 2 3 4 5"`) and report the spread.
+2. **Seeds.** One seed fixes the split, the initial population and NSGA-II together. Run several (`SEEDS="1 2 3 4 5"`) and report the spread.
 3. **MF breakpoints held fixed.** Correct as-is, but do not tune breakpoints and rules on the
    same split; nest any breakpoint tuning inside an outer fold.
 4. **Simulation-derived labels.** Ground truth is attacker mote IDs in Cooja [15]; the learned
    consequents inherit the simulation's topology and mobility scope.
-5. **Fixed attack start.** Labels use a fixed 300 s, while attackers activate between 200 s and
-   330 s (§3.3); a per-attacker activation time would be more exact.
+5. **Launch time as the attack start.** Labels start at each attacker's `[ATK-LAUNCHED]` time.
+   An attack can take a few seconds to leave a trace in the evidence, so the first events after
+   launch can look benign (0.4 % of attack events have all inculpatory features below 20).
 6. **$z = 50$ unreachable** (§5.4), a consequence of the 0.5-centred margin.
 7. **"Knee" is a weighted sum** (§7.1).
-8. **Pool built on a sample.** Candidates, consequents and pruning use the 40,000-event training
-   sample, not the full training partition; rare-region rules can fall below the support floor
-   on the sample.
+8. **The data ceiling** (§3.6). Identical evidence vectors carry both labels, so no rule base
+   of $v_1..v_7$ can exceed F1 ≈ 0.988 on these test sets.
 
 ---
 
@@ -537,7 +573,7 @@ serial output captured to a log file                      §12.3
 scripts/parse_serial.sh → scripts/parse_serial.py         §12.4
       │  one CSV per log
       ▼
-data/processed/<env>/r<k>/<3|6|9>/<...>-S<k>-exp<id>...csv   §12.2
+data/processed/<...>-S<k>-exp<id>[-mobile]-<round>.csv          §12.2
       │
       ▼
 ./run_cars.sh   (or ./run_cars.sh --parse to run the parse step first)
@@ -545,10 +581,17 @@ data/processed/<env>/r<k>/<3|6|9>/<...>-S<k>-exp<id>...csv   §12.2
 
 ### 12.2 The contract `real_data.py` enforces
 
-**Path** — `data/processed/{mobile,static}/r{1,2,3}/{3,6,9}/<...>-S<k>-exp<id>...csv`. The
-environment folder must be lowercase `mobile` or `static`; the attacker-count folder sets the
-attacker IDs; the `-S<k>-` part of the filename sets the attack type. A path that does not
-match raises an error.
+**File name** — flat in `data/processed/`, every label in the name:
+
+```
+data/processed/<a>-<b>-<honest>-<atkcount>-<c>-S<k>-exp<id>[-mobile]-<round>.csv
+e.g.  3-1-21-9-150-S2-exp5438-mobile-3.csv  ->  9 attackers, S2, mobile, round 3
+```
+
+The 4th field sets the attacker count (and so the attacker IDs), `-S<k>-` the attack type,
+`-mobile` the environment (absent = static) and the last number the round. A name that does
+not match raises an error. `parse_serial.py` keeps the log's name, so a CSV is always traceable
+to its log in `data/raw/` and its simulation.
 
 **Header** — 18 columns, as written by `parse_serial.py`:
 
@@ -563,7 +606,7 @@ sim_ms,mote_id,src,R,Rhat,e,v1,v2,v3,v4,v5,v6,v7,AC,ML,t,type,action
 | `type` | Event kind | Rows are filtered to `type == "detection"` |
 | `mote_id` | The node **doing** the observing (runs the IDS) | Used to drop attacker-observer rows |
 | `src` | The node **being** observed | Determines the label |
-| `t` | Simulation time in **seconds** | Compared against 300 s; **seconds, not ms** |
+| `t`, `sim_ms` | Simulation time in **seconds** and **milliseconds** | `sim_ms` is compared with the attacker's launch time; `t` with a fixed `LABEL_START` |
 | `v1`–`v7` | Evidence features | Integers on a **0–100** scale |
 
 `sim_ms`, `R`, `Rhat`, `e`, `AC`, `ML`, `action` are not used by selection. Keep them: `AC` is
@@ -576,6 +619,9 @@ that looks wrong.
 > still scores plausibly.
 
 ### 12.3 Firmware output and capture
+
+The attacker motes also print one `[ATK-LAUNCHED]` line when their attack starts; `scripts/extract_launch.py`
+turns these into `data/attack_launch.csv` (`./run_cars.sh --parse` runs it after parsing).
 
 The firmware prints one line per detection event with the marker `FUZZRID,DET`, followed by
 13 integers in this order (the format `parse_serial.py` matches):
@@ -619,16 +665,16 @@ counts. Re-parsing the current logs reproduces the existing CSVs byte for byte (
 ### 12.5 Validate before you run selection
 
 A malformed CSV does not crash the pipeline — it produces a plausible-looking F1. The check
-step of `./run_cars.sh` counts the CSVs (108 expected), and the select log prints the loader's
+step of `./run_cars.sh` counts the CSVs (72 expected), and the select log prints the loader's
 summary first:
 
 ```
-[real_data] 108 files (0 skipped by env filter, 36 skipped as duplicate static rounds) -> 388338 detection events | attack=83781 benign=304557
+[real_data] 72 files (0 skipped by env filter) -> 390201 detection events | attack=85644 benign=304557
 ```
 
 followed by counts per scenario and per environment / round / attacker count. All six
 scenarios and every round should appear, with a plausible attack share in each cell. If a
-scenario or cell is missing, check the path layout (§12.2); if the attack share is zero, check
+scenario or cell is missing, check the file names (§12.2); if the attack share is zero, check
 the attacker IDs and the `t` unit.
 
 ### 12.6 Data collection is where validity is decided
@@ -724,7 +770,7 @@ with `numpy`, `pandas` and `pymoo`; the repo-root `.venv/` has them
 QUICK=1 ./run_cars.sh                  # smoke test, ~30 s per seed
 SEEDS="1 2 3 4 5" ./run_cars.sh        # multi-seed; SUMMARY.md shows mean ± std
 MAX_RULES=30 ./run_cars.sh             # override any config.sh setting for one run
-./run_cars.sh --parse                  # rebuild data/processed from data/raw/logs first
+./run_cars.sh --parse                  # rebuild data/processed from data/raw first
 ./run_cars.sh --out outputs/cars/run_X --from loso    # resume an earlier run
 ./run_cars.sh -h
 ```
@@ -769,7 +815,8 @@ The appendix ([`Offline-rule-selection-appendix.md`](Offline-rule-selection-appe
 the procedure and reporting this code should support. The plan recorded here on 2026-09-30 (a
 33-rule seed base $K_0$ injected into the pool and population, $U=33$, a prior-centred margin,
 pre-activation events labelled benign) was **superseded on 2026-10-22**: no hand-crafted rules
-are used, $U=35$, and the margin, labelling and attack start are as in §3 and §5. What remains:
+are used, $U=35$, labels start at each attacker's launch, the whole training partition is
+used as weighted rows, and the margin is as in §5. What remains:
 
 1. **Results.** Run `./run_cars.sh` (and `./run_thfis.sh`) with `SEEDS="1 2 3 4 5"` and fill the
    result tables of the appendix and of `offline-rule-selection-methods.md` from `SUMMARY.md`.
@@ -780,9 +827,9 @@ are used, $U=35$, and the margin, labelling and attack start are as in §3 and �
 4. **Selection frequency.** Table A.4 needs, per antecedent–consequent pair, the fraction of
    runs in which it was in the pool ("Avail.") and selected ("Sel.") across seeds × protocols ×
    folds. Not implemented.
-5. **Ablations (Table A.5).** Floating-point evaluation is available (`ARITH=float`). The others
-   need code options: a prior-centred margin $|c_r-\pi|\ge m$, pre-300 s attacker events labelled
-   benign instead of dropped, and a per-attacker activation time instead of the fixed 300 s.
+5. **Ablations (Table A.5).** Floating-point evaluation (`ARITH=float`) and a fixed attack start
+   (`LABEL_START=300`) are available. Two need code options: a prior-centred margin
+   $|c_r-\pi|\ge m$, and pre-launch attacker events labelled benign instead of dropped.
 6. **Memory budget.** Confirm on the firmware that 35 rules fit (full-image RAM and flash, the
    inference routine's worst-case stack, flash cost per rule as a function of antecedent length).
 7. **Independent corpus (P4).** New Cooja runs with new seeds, and ideally a new topology or
