@@ -9,7 +9,7 @@ expert base R1-R18.
 Usage:
     python3 run_selection.py <events_csv_dir> <output_dir> \
         [--atk-id-start 33] [--atk-start-s 300] [--atk-nodes 5,6,7] \
-        [--ac-thr 65] [--max-terms 4] [--max-rules 30] \
+        [--ac-thr 65] [--max-terms 4] [--min-rules 12] [--max-rules 35] \
         [--pop 120] [--gens 200] [--seed 42] [--test-frac 0.3] \
         [--mf-high 60,90]
 
@@ -43,7 +43,8 @@ def main():
                     help="comma-separated attacker mote IDs (overrides --atk-id-start)")
     ap.add_argument("--ac-thr", type=float, default=65.0)
     ap.add_argument("--max-terms", type=int, default=4)
-    ap.add_argument("--max-rules", type=int, default=30)
+    ap.add_argument("--max-rules", type=int, default=35)
+    ap.add_argument("--min-rules", type=int, default=12)
     ap.add_argument("--min-support", type=float, default=0.005)
     ap.add_argument("--conf-margin", type=float, default=0.15)
     ap.add_argument("--pop", type=int, default=120)
@@ -89,7 +90,8 @@ def main():
 
     # ---- 4. NSGA-II ------------------------------------------------------
     masks, F = run_nsga2(pool, y_tr, ac_thr=args.ac_thr,
-                         max_rules=args.max_rules, pop_size=args.pop,
+                         max_rules=args.max_rules, min_rules=args.min_rules,
+                         pop_size=args.pop,
                          n_gen=args.gens, seed=args.seed)
     print(f"[nsga2] Pareto front: {len(masks)} non-dominated rule bases")
 

@@ -14,9 +14,9 @@ accuracy/complexity trade-off formulation for fuzzy rule selection:
 Classification: a sample is flagged when Sugeno AC >= ac_thr (default 65,
 matching FUZZRID_TAU_Q_PCT / compute_metrics.py AC_THR).
 
-The expert 18-rule base is injected into the initial population, plus
-mutated neighbours of it, so the optimizer starts from (and must beat or
-join) the taxonomy-derived solution rather than ignore it.
+The initial population is random by default (no expert knowledge).
+seed_expert=True injects the expert base plus mutated neighbours of it,
+so the optimizer starts from the taxonomy-derived solution.
 """
 
 from __future__ import annotations
@@ -76,10 +76,14 @@ class RuleSelectionProblem(Problem):
 
 
 def seeded_population(pool_size: int, pop_size: int, expert_mask: np.ndarray,
-                      seed: int = 42, init_density: float = 0.02):
-    """Random sparse individuals + the expert base + mutated expert variants."""
+                      seed: int = 42, init_density: float = 0.02,
+                      seed_expert: bool = False):
+    """Random sparse individuals; with seed_expert, also the expert base +
+    mutated expert variants."""
     rng = np.random.default_rng(seed)
     P = (rng.random((pop_size, pool_size)) < init_density)
+    if not seed_expert:
+        return P
     P[0] = expert_mask.copy()                        # the taxonomy-derived base
     for i in range(1, min(10, pop_size)):            # neighbourhood of it
         v = expert_mask.copy()
@@ -91,12 +95,14 @@ def seeded_population(pool_size: int, pop_size: int, expert_mask: np.ndarray,
 
 def run_nsga2(pool: dict, y: np.ndarray, ac_thr: float = 65.0,
               max_rules: int = 30, min_rules: int = 0, pop_size: int = 120,
-              n_gen: int = 200, seed: int = 42, verbose: bool = True):
+              n_gen: int = 200, seed: int = 42, verbose: bool = True,
+              seed_expert: bool = False):
     W, z, expert_mask = pool["W"], pool["z"], pool["expert_mask"]
     problem = RuleSelectionProblem(W, z, y, ac_thr=ac_thr, max_rules=max_rules,
                                    min_rules=min_rules)
 
-    init = seeded_population(W.shape[1], pop_size, expert_mask, seed=seed)
+    init = seeded_population(W.shape[1], pop_size, expert_mask, seed=seed,
+                             seed_expert=seed_expert)
     algo = NSGA2(pop_size=pop_size,
                  sampling=init.astype(bool),
                  crossover=UniformCrossover(prob=0.9),

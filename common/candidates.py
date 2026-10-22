@@ -22,8 +22,10 @@ and z_r = the singleton in {0,25,50,75,100} nearest to 100*conf(r).
 Pruning keeps rules with support >= min_support and |conf-0.5| >= margin
 (rules that cannot discriminate carry no selective value).
 
-The expert base R1-R18 is always merged into the pool (flagged), so
-NSGA-II selects over expert and generated rules on equal footing.
+The pool is purely data-driven by default: the expert base R1-R18 is NOT
+injected. expert_mask then flags generated rules whose antecedent equals
+an R1-R18 antecedent (reporting only). include_expert=True restores the
+old behaviour: R1-R18 merged into the pool with firmware consequents.
 """
 
 from __future__ import annotations
@@ -75,7 +77,7 @@ def build_pool(X: np.ndarray, y: np.ndarray, mf: MFConfig,
                min_support: float = 0.005,
                conf_margin: float = 0.15,
                wm_max_rules: int = 200,
-               include_expert: bool = True,
+               include_expert: bool = False,
                verbose: bool = True):
     """Returns dict with antecedents (P,7), z (P,), conf, support, names,
     expert_mask (bool P,), and the precomputed firing matrix W (n,P)."""
@@ -100,9 +102,14 @@ def build_pool(X: np.ndarray, y: np.ndarray, mf: MFConfig,
     W = W[:, keep]
     names = [f"G{i+1}({s})" for i, s in enumerate(src)]
     expert_mask = np.zeros(len(ants), dtype=bool)
+    e_ants, e_z, e_names = expert_arrays()
 
-    if include_expert:
-        e_ants, e_z, e_names = expert_arrays()
+    if not include_expert:
+        # No injection: only mark generated rules that match an expert
+        # antecedent, so overlap_stats still measures agreement with R1-R18.
+        expert_mask = np.array([any((ea == a).all() for ea in e_ants) for a in ants],
+                               dtype=bool)
+    else:
         # Drop generated duplicates of expert rules (same antecedent);
         # expert copy wins so consequents stay firmware-faithful.
         dup = np.array([any((ea == a).all() for ea in e_ants) for a in ants])
@@ -123,7 +130,7 @@ def build_pool(X: np.ndarray, y: np.ndarray, mf: MFConfig,
 
     if verbose:
         print(f"[pool] enumerated={len(ants_enum)}  wang-mendel={len(ants_wm)}  "
-              f"after pruning+expert merge={len(ants)} candidates "
-              f"({int(expert_mask.sum())} expert)")
+              f"after pruning{'+expert merge' if include_expert else ''}={len(ants)} candidates "
+              f"({int(expert_mask.sum())} {'expert' if include_expert else 'match an expert antecedent'})")
     return dict(antecedents=ants, z=z, conf=conf, support=support,
                 names=names, expert_mask=expert_mask, W=W)

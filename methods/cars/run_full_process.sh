@@ -32,7 +32,8 @@ TIME_UNIT="${TIME_UNIT:-us}"      # unit of the Cooja script's `time` variable
 AC_THR="${AC_THR:-65}"            # FUZZRID_TAU_Q_PCT
 MF_HIGH="${MF_HIGH:-60,90}"       # 50,80 for the pre-Mar-2026 membership funcs
 MAX_TERMS="${MAX_TERMS:-4}"
-MAX_RULES="${MAX_RULES:-30}"      # Z1 RAM/flash budget
+MIN_RULES="${MIN_RULES:-12}"
+MAX_RULES="${MAX_RULES:-35}"      # Z1 RAM/flash budget
 POP="${POP:-120}"
 GENS="${GENS:-200}"
 TEST_FRAC="${TEST_FRAC:-0.3}"
@@ -138,6 +139,7 @@ for seed in $SEEDS; do
         --ac-thr "$AC_THR" \
         --mf-high "$MF_HIGH" \
         --max-terms "$MAX_TERMS" \
+        --min-rules "$MIN_RULES" \
         --max-rules "$MAX_RULES" \
         --pop "$POP" \
         --gens "$GENS" \

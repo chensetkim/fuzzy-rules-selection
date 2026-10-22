@@ -58,7 +58,7 @@ def main():
     ap.add_argument("--train-sample", type=int, default=40000)
     ap.add_argument("--mf-high", type=str, default="60,90")
     ap.add_argument("--min-rules", type=int, default=12)
-    ap.add_argument("--max-rules", type=int, default=29)
+    ap.add_argument("--max-rules", type=int, default=35)
     args = ap.parse_args()
 
     hc, hd = (int(x) for x in args.mf_high.split(","))

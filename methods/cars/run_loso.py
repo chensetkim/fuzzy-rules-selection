@@ -34,7 +34,7 @@ def main():
     ap.add_argument("--out-root", default="outputs/cars/loso")
     ap.add_argument("--ac-thr", type=float, default=65.0)
     ap.add_argument("--max-terms", type=int, default=4)
-    ap.add_argument("--max-rules", type=int, default=29)
+    ap.add_argument("--max-rules", type=int, default=35)
     ap.add_argument("--min-rules", type=int, default=12)
     ap.add_argument("--min-support", type=float, default=0.005)
     ap.add_argument("--conf-margin", type=float, default=0.15)

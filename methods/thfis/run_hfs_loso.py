@@ -21,7 +21,7 @@ def main():
     ap.add_argument("--csv-root", default="data/processed")
     ap.add_argument("--out-root", default="outputs/thfis/loso")
     ap.add_argument("--ac-thr", type=float, default=65.0)
-    ap.add_argument("--max-rules", type=int, default=29)
+    ap.add_argument("--max-rules", type=int, default=35)
     ap.add_argument("--min-rules", type=int, default=12)
     ap.add_argument("--min-support", type=float, default=0.01)
     ap.add_argument("--conf-margin", type=float, default=0.15)
