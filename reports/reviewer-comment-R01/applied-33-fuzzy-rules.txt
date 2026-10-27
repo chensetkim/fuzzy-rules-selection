@@ -1,0 +1,82 @@
+2H-FuzzRID -- Active Flat Fuzzy Rule Base (fuzzrid_fuzzy_r33_infer_ac_flat, WITH_THFIS=0)
+Source: apps/2h-fuzzrid/fuzzrid-fuzzy.c, 33 rules, zero-order Sugeno weighted average, eps=1
+Consequent scale: VL=0, L=25, M=50, H=75, VH=100
+
+Inputs (integer scale 0..100):
+v1: Rank monotonicity violation
+v2: Rank residual / plausibility anomaly
+v3: Sustained CUSUM drift
+v4: Rank jump
+v5: Rank oscillation
+v6: Mobility index (context for mobility-explainable anomalies)
+v7: Two-hop parent-rank mismatch
+
+Membership functions (membership degrees are integers in 0..100):
+L: trapezoidal(v; 0, 0, 20, 50)
+M: triangular(v; 20, 50, 80)
+H: trapezoidal(v; 50, 80, 100, 100)
+not-H: 100 - mu_H(v); full membership through v=50, falling to zero at v=80.
+AND uses min; OR uses max. Unmentioned inputs do not constrain a rule.
+In rules 31 and 32, (M OR H) means max(mu_M, mu_H), not 100 - mu_L.
+Each THEN value is a rule singleton zc[r], not the final aggregated AC.
+
+Rule	Condition (IF - THEN)	Category
+1	IF v3 is H AND v4 is L AND v5 is L AND v6 is not-H THEN AC = 75	CUSUM drift with mobility gate
+2	IF v2 is M THEN AC = 100	Moderate residual
+3	IF v2 is M AND v5 is L AND v6 is not-H THEN AC = 100	Residual + stability with mobility gate
+4	IF v2 is M AND v4 is L AND v7 is L THEN AC = 100	Residual with low jump and low mismatch
+5	IF v2 is M AND v4 is H AND v5 is L AND v7 is L THEN AC = 100	Residual + rank jump
+6	IF v2 is M AND v3 is H THEN AC = 100	Residual + CUSUM drift
+7	IF v2 is H AND v5 is L AND v6 is not-H AND v7 is L THEN AC = 100	Residual + stability with mobility gate
+8	IF v2 is H AND v4 is L AND v6 is not-H THEN AC = 75	Residual with mobility gate
+9	IF v2 is H AND v4 is L AND v6 is not-H AND v7 is L THEN AC = 100	Residual with mobility gate and low mismatch
+10	IF v2 is H AND v4 is M AND v5 is L AND v6 is not-H THEN AC = 75	Residual + moderate jump with mobility gate
+11	IF v2 is H AND v3 is H AND v5 is L AND v7 is L THEN AC = 75	Residual + CUSUM drift
+12	IF v2 is H AND v3 is H AND v5 is L AND v6 is not-H THEN AC = 100	Residual + CUSUM drift with mobility gate
+13	IF v2 is H AND v3 is H AND v4 is L AND v7 is L THEN AC = 100	Residual + CUSUM drift
+14	IF v2 is H AND v3 is H AND v4 is M AND v6 is not-H THEN AC = 100	Residual + CUSUM drift with mobility gate
+15	IF v5 is M AND v6 is not-H THEN AC = 50	Moderate oscillation with mobility gate
+16	IF v1 is L AND v2 is H AND v7 is L THEN AC = 100	Residual
+17	IF v1 is L AND v2 is H AND v5 is L AND v6 is not-H THEN AC = 100	Residual + stability with mobility gate
+18	IF v1 is H AND v4 is L AND v7 is L THEN AC = 75	Monotonicity violation
+19	IF v1 is H AND v4 is H AND v7 is L THEN AC = 100	Monotonicity violation + rank jump
+20	IF v1 is H AND v2 is H AND v4 is H AND v7 is L THEN AC = 100	Monotonicity violation + residual + rank jump
+21	IF v3 is H AND v6 is not-H THEN AC = 75	CUSUM drift with mobility gate
+22	IF v1 is H AND v7 is H THEN AC = 100	Monotonicity violation + two-hop mismatch
+23	IF v3 is H AND v7 is H THEN AC = 100	CUSUM drift + two-hop mismatch
+24	IF v6 is H AND v1 is L AND v3 is L AND v7 is L THEN AC = 0	Conditional mobility exoneration
+25	IF v1 is H THEN AC = 100	Standalone high monotonicity violation
+26	IF v1 is M THEN AC = 50	Moderate monotonicity violation
+27	IF v5 is H AND v6 is not-H THEN AC = 75	High oscillation with mobility gate
+28	IF v5 is H AND v2 is H THEN AC = 100	High oscillation + residual
+29	IF v4 is H AND v6 is not-H THEN AC = 75	High rank jump with mobility gate
+30	IF v3 is M AND v6 is not-H THEN AC = 50	Moderate CUSUM drift with mobility gate
+31	IF v7 is M AND (v1 is M OR v1 is H) THEN AC = 75	Moderate two-hop mismatch + monotonicity corroboration
+32	IF v7 is M AND (v3 is M OR v3 is H) THEN AC = 75	Moderate two-hop mismatch + drift corroboration
+33	IF v7 is H THEN AC = 100	Standalone high two-hop mismatch
+
+Notes:
+- Dispatch: fuzzrid_fuzzy_infer_ac() calls fuzzrid_fuzzy_r33_infer_ac_flat()
+  when WITH_THFIS=0. When WITH_THFIS is nonzero, it calls
+  fuzzrid_fuzzy_infer_ac_hfs_x(); the rules above describe only the flat path.
+  Calls to fuzzrid_fuzzy_infer_ac_18rule() and fuzzrid_fuzzy_infer_ac_flat()
+  are commented out in the dispatcher.
+- Aggregation: AC = floor(sum(w[r] * zc[r]) / (1 + sum(w[r]))), r=1..33,
+  followed by a clamp to 100. Membership calculations also use integer division.
+  If no rule fires, AC=0. The eps=1 denominator means a singleton of 100 does
+  not by itself produce an aggregated AC of 100.
+- Compared with the former 24-rule report, mobility gates now use not-H
+  instead of L. Rule 15 is now v5 is M AND v6 is not-H -> 50; it no longer
+  requires v1 is L. Rules 25..32 add coverage, and rule 33 is unconditional
+  within this rule base (its firing strength is mu_H(v7)).
+- Rules 31 and 32 each remain one rule with an OR antecedent; splitting them
+  into separate rules would change the weighted-average result.
+- Rule 24 is the only zero-consequent rule: when it fires, it contributes
+  weight to the denominator but nothing to the numerator. Other rules with
+  lower consequents can also lower the weighted average; rule 24 is not the
+  only rule capable of lowering AC.
+- Rule 2 assigns a VH singleton to moderate v2 without corroboration.
+  Its firing strength peaks at v2=50 and is zero at v2=100; this describes
+  the individual rule, not the monotonicity of the complete inference output.
+- Historical performance figures documented above fuzzrid_fuzzy_infer_ml()
+  in the source are not validation results for this 33-rule base.

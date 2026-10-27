@@ -1,0 +1,178 @@
+{
+  "method": "FERMAD",
+  "record_type": "new extraction of fixed rules from supplied specification and matching firmware",
+  "prepared_date": "2026-10-27",
+  "rule_count": 33,
+  "historical_firmware_commit": "0363d4605dfbd8998366f73c7c21827a0643da0f",
+  "recorded_git_date": "2026-09-02T14:09:30+07:00",
+  "firmware_sha256": "7d61c5d18d172fe2403a28dc970530049397e8fd48c90e14c02766849b9699c6",
+  "historical_selection_run": "not recovered",
+  "historical_evaluation_mapping": "not established",
+  "rules": [
+    {
+      "id": 1,
+      "antecedent": "v3 is H AND v4 is L AND v5 is L AND v6 is not-H",
+      "singleton": 75
+    },
+    {
+      "id": 2,
+      "antecedent": "v2 is M",
+      "singleton": 100
+    },
+    {
+      "id": 3,
+      "antecedent": "v2 is M AND v5 is L AND v6 is not-H",
+      "singleton": 100
+    },
+    {
+      "id": 4,
+      "antecedent": "v2 is M AND v4 is L AND v7 is L",
+      "singleton": 100
+    },
+    {
+      "id": 5,
+      "antecedent": "v2 is M AND v4 is H AND v5 is L AND v7 is L",
+      "singleton": 100
+    },
+    {
+      "id": 6,
+      "antecedent": "v2 is M AND v3 is H",
+      "singleton": 100
+    },
+    {
+      "id": 7,
+      "antecedent": "v2 is H AND v5 is L AND v6 is not-H AND v7 is L",
+      "singleton": 100
+    },
+    {
+      "id": 8,
+      "antecedent": "v2 is H AND v4 is L AND v6 is not-H",
+      "singleton": 75
+    },
+    {
+      "id": 9,
+      "antecedent": "v2 is H AND v4 is L AND v6 is not-H AND v7 is L",
+      "singleton": 100
+    },
+    {
+      "id": 10,
+      "antecedent": "v2 is H AND v4 is M AND v5 is L AND v6 is not-H",
+      "singleton": 75
+    },
+    {
+      "id": 11,
+      "antecedent": "v2 is H AND v3 is H AND v5 is L AND v7 is L",
+      "singleton": 75
+    },
+    {
+      "id": 12,
+      "antecedent": "v2 is H AND v3 is H AND v5 is L AND v6 is not-H",
+      "singleton": 100
+    },
+    {
+      "id": 13,
+      "antecedent": "v2 is H AND v3 is H AND v4 is L AND v7 is L",
+      "singleton": 100
+    },
+    {
+      "id": 14,
+      "antecedent": "v2 is H AND v3 is H AND v4 is M AND v6 is not-H",
+      "singleton": 100
+    },
+    {
+      "id": 15,
+      "antecedent": "v5 is M AND v6 is not-H",
+      "singleton": 50
+    },
+    {
+      "id": 16,
+      "antecedent": "v1 is L AND v2 is H AND v7 is L",
+      "singleton": 100
+    },
+    {
+      "id": 17,
+      "antecedent": "v1 is L AND v2 is H AND v5 is L AND v6 is not-H",
+      "singleton": 100
+    },
+    {
+      "id": 18,
+      "antecedent": "v1 is H AND v4 is L AND v7 is L",
+      "singleton": 75
+    },
+    {
+      "id": 19,
+      "antecedent": "v1 is H AND v4 is H AND v7 is L",
+      "singleton": 100
+    },
+    {
+      "id": 20,
+      "antecedent": "v1 is H AND v2 is H AND v4 is H AND v7 is L",
+      "singleton": 100
+    },
+    {
+      "id": 21,
+      "antecedent": "v3 is H AND v6 is not-H",
+      "singleton": 75
+    },
+    {
+      "id": 22,
+      "antecedent": "v1 is H AND v7 is H",
+      "singleton": 100
+    },
+    {
+      "id": 23,
+      "antecedent": "v3 is H AND v7 is H",
+      "singleton": 100
+    },
+    {
+      "id": 24,
+      "antecedent": "v6 is H AND v1 is L AND v3 is L AND v7 is L",
+      "singleton": 0
+    },
+    {
+      "id": 25,
+      "antecedent": "v1 is H",
+      "singleton": 100
+    },
+    {
+      "id": 26,
+      "antecedent": "v1 is M",
+      "singleton": 50
+    },
+    {
+      "id": 27,
+      "antecedent": "v5 is H AND v6 is not-H",
+      "singleton": 75
+    },
+    {
+      "id": 28,
+      "antecedent": "v5 is H AND v2 is H",
+      "singleton": 100
+    },
+    {
+      "id": 29,
+      "antecedent": "v4 is H AND v6 is not-H",
+      "singleton": 75
+    },
+    {
+      "id": 30,
+      "antecedent": "v3 is M AND v6 is not-H",
+      "singleton": 50
+    },
+    {
+      "id": 31,
+      "antecedent": "v7 is M AND v1 is M OR v1 is H",
+      "singleton": 75
+    },
+    {
+      "id": 32,
+      "antecedent": "v7 is M AND v3 is M OR v3 is H",
+      "singleton": 75
+    },
+    {
+      "id": 33,
+      "antecedent": "v7 is H",
+      "singleton": 100
+    }
+  ]
+}

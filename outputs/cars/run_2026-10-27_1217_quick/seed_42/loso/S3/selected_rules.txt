@@ -1,0 +1,22 @@
+Leave-one-scenario-out: trained on all scenarios except S3; evaluated on S3 only (unseen attack type).
+Knee-point rule base (17 rules)
+test F1=0.8253 FPR=0.0040 recall=0.7105 precision=0.9844
+data ceiling on this test: F1<=0.9995 FPR=0.0002
+
+      G4(enum) IF v6 is M THEN AC = L (25)   (support=0.478, conf=0.19)
+     G16(enum) IF v5 is M THEN AC = VH (100)   (support=0.011, conf=0.89)
+    G109(enum) IF v3 is H AND v4 is L AND v6 is L AND v7 is L THEN AC = VH (100)   (support=0.046, conf=0.92)
+    G126(enum) IF v3 is H AND v4 is M AND v5 is L AND v6 is H THEN AC = H (75)   (support=0.022, conf=0.66)
+    G197(enum) IF v2 is L AND v3 is H AND v5 is L AND v6 is M THEN AC = L (25)   (support=0.042, conf=0.25)
+    G212(enum) IF v2 is M AND v5 is L AND v7 is L THEN AC = VH (100)   (support=0.044, conf=0.99)
+    G229(enum) IF v2 is M AND v4 is L AND v5 is L THEN AC = VH (100)   (support=0.031, conf=0.99)
+    G276(enum) IF v2 is M AND v3 is H AND v4 is M AND v5 is L THEN AC = VH (100)   (support=0.009, conf=0.98)
+    G281(enum) IF v2 is H THEN AC = H (75)   (support=0.157, conf=0.78)
+    G292(enum) IF v2 is H AND v5 is L AND v6 is L AND v7 is L THEN AC = VH (100)   (support=0.043, conf=0.96)
+    G394(enum) IF v1 is L AND v4 is M AND v5 is L THEN AC = H (75)   (support=0.015, conf=0.68)
+    G431(enum) IF v1 is L AND v3 is H AND v4 is L AND v6 is L THEN AC = H (75)   (support=0.018, conf=0.86)
+    G436(enum) IF v1 is L AND v3 is H AND v4 is M AND v5 is L THEN AC = H (75)   (support=0.015, conf=0.70)
+    G544(enum) IF v1 is L AND v2 is H AND v4 is H AND v6 is M THEN AC = VH (100)   (support=0.008, conf=1.00)
+    G575(enum) IF v1 is H AND v4 is H AND v6 is L THEN AC = VH (100)   (support=0.007, conf=0.95)
+    G665(enum) IF v1 is H AND v2 is M AND v3 is H AND v5 is L THEN AC = VH (100)   (support=0.017, conf=1.00)
+    G687(enum) IF v1 is H AND v2 is H AND v4 is H AND v6 is L THEN AC = VH (100)   (support=0.007, conf=0.94)

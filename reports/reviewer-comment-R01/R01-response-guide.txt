@@ -1,0 +1,249 @@
+R01 — OFFLINE RULE SELECTION: EVIDENCE AND RESPONSE GUIDE
+Prepared: 27 October 2026
+
+Working manuscript:
+../../FERMAD-draft-v.md
+
+Reviewer source:
+reviewer-comment/FERMAD_COMMENTS_v3_20261026.txt
+
+Related checklist:
+revise-check-list.md — R01
+
+Current status: OPEN. This note is a work guide, not a completed response.
+No selection script, split allocation or deployed-rule correspondence was
+verified in preparing this note.
+
+
+1. WHAT R01 ASKS
+
+Reviewer title:
+“Offline selection and independent evaluation are asserted but not
+reproducibly specified.”
+
+The reviewer classified this as a MAJOR evidence/specification request
+with UNCERTAIN status. The reviewer acknowledged that the manuscript
+describes run-disjoint candidate generation, development validation and
+final evaluation, and that Table 9 specifies the deployed 33-rule base.
+
+However, the actual records are missing or not identified:
+
+- Development corpus and its allocation to candidate generation,
+  development validation and final evaluation.
+- Run/seed membership and shared movement or attack-trace groups.
+- Sample counts and attack/benign balance in each development partition.
+- Support threshold s_min and confidence margin m.
+- Classification threshold tau_Q.
+- NSGA-II population size and generation count.
+- Crossover and mutation settings and optimiser random seed.
+- Candidate-pool/pruning results, rule-count bounds and selection output.
+- Evidence connecting the selected output to the deployed 33 rules.
+- Retained provenance supporting the claimed pre-evaluation freeze.
+
+Why this matters:
+The classifier may be reconstructible from the listed rules, while the
+claimed derivation and independence of the final evaluation remain
+unverifiable. Missing records are not proof of leakage, false results or
+incorrect optimisation.
+
+Closure requires concrete evidence permitting reconstruction and an
+inspection of development/evaluation separation. Removing instructional
+wording or adding a limitation alone does not supply that evidence.
+
+
+2. ADDRESS R01 IN THIS ORDER
+
+STEP 1 — IDENTIFY THE ACTUAL SELECTION SCRIPT AND SAVED OUTPUT
+
+Start with the retained executable artifacts, not a narrative report.
+Likely entry points are fuzzy-rules-selection/run_cars.sh and the program
+it invokes. Inspect run_thfis.sh only to determine its role and whether
+it belongs to the deployed flat 33-rule pipeline or a different model.
+Do not assume that a script filename identifies the evaluated method.
+
+Record:
+- Script/source version or archive identity.
+- Actual invocation, working directory and configuration/CLI overrides.
+- Input files and output directory used for the retained selection run.
+- Saved logs, parameter files, Pareto output and selected rule file.
+- Relevant software versions and random-seed settings.
+
+Expected outcome:
+An identified script/configuration/output chain for the selection run
+claimed in the manuscript. Distinguish executable defaults from the
+settings actually used. A launcher alone is not execution provenance.
+
+STEP 2 — RECONSTRUCT THE DEVELOPMENT CORPUS AND PARTITIONS
+
+For candidate generation, development validation and final evaluation,
+list the original run identities, seeds, configuration identities and
+trace files. Include topology, mobility, attack and density information
+where relevant to distinguish the runs and their shared realizations.
+
+Record:
+- Partition purpose and membership.
+- Total sample count and attack/benign counts in development partitions.
+- Labelling rules, including attack activation and benign observations.
+- Whether and how complete runs were kept together.
+- Shared movement/attack traces or other grouped dependencies.
+- Data-generation conditions, including monitor-only/mitigation status.
+
+Expected outcome:
+An allocation manifest and a count summary that agree with the actual
+input files. Distinguish simulation seeds from the optimiser seed.
+
+STEP 3 — CHECK FINAL-EVALUATION SEPARATION AND FREEZE PROVENANCE
+
+Check intersections between the partitions using run identities and
+trace/group identities. Different numeric seed labels alone do not prove
+independence if a common realization was reused.
+
+Check what retained records establish when the rules, membership
+functions, thresholds and deployment-selection policy were fixed
+relative to final evaluation. Do not infer that rules were fixed in
+advance merely because they are fixed now.
+
+Expected outcome:
+A documented separation check and an honest description of the retained
+freeze history. Newly calculated hashes identify the files currently
+available; they do not independently establish their historical dates.
+
+If an untouched final evaluation cannot be established, identify the
+affected evidence as development/exploratory. Discuss a fresh held-out
+evaluation only for the claims that require it. Do not invent missing
+history or automatically rerun every experiment.
+
+STEP 4 — COMPARE SELECTED RULES WITH THE DEPLOYED CONFIGURATION
+
+Compare the saved selected output with:
+- Table 9 in the original working manuscript.
+- The evaluated firmware's flat inference rule implementation.
+- DM-2H-FuzzRID-Contiki-OS-3.0/Report/fuzzrid_flat_rules-IF THEN.txt
+  as a supporting readable representation, not independent proof of
+  which rules were executed.
+
+Check all 33 antecedents and consequents, including conjunctions,
+disjunctions, not-High conditions and unconstrained features. Check the
+membership functions, integer rounding and aggregation settings used
+offline against the deployed inference behavior. Similar rule counts
+or reordered textual descriptions alone do not establish equivalence.
+
+Expected outcome:
+A rule/configuration comparison with any differences recorded. Use R02's
+build/run record to connect the verified implementation to the numerical
+results; a newly tested build does not retroactively identify old runs.
+
+STEP 5 — REVISE THE MANUSCRIPT AND RESPONSE AFTER CHECKING EVIDENCE
+
+Replace general statements with actual settings and references to the
+supplied artifacts. Update Section 4.2.2, Algorithm 3 and the experimental
+setup where necessary. Preserve Table 9 if its contents are verified;
+correct it only through the normal suggestion/approval workflow.
+
+If retained records permit it, provide a reproduction script or bounded
+replay of selection. A new replay must be labelled as a new verification
+and not substituted silently for the historical selection record.
+
+Expected outcome:
+A factual manuscript description, supplied evidence and a point-by-point
+response consistent with the checks actually completed.
+
+
+3. SUGGESTED EVIDENCE PACKAGE
+
+Suggested filenames are organisational aids, not existing artifacts or
+mandatory submission filenames:
+
+- selection_manifest.csv
+  Partition membership, run/seed/configuration IDs and trace identities.
+- development_counts.csv
+  Total, attack and benign sample counts by partition.
+- optimizer_config.json or equivalent retained configuration
+  Actual candidate/pruning/classification/search settings and seeds.
+- selected_rulebase.txt or equivalent original selection output
+  Selected antecedents/consequents and file identity.
+- split_separation_check.txt
+  Run/trace-group overlap checks, findings and limitations.
+- freeze_provenance.txt
+  Retained evidence about the timing of configuration selection.
+- rule_correspondence.csv
+  Selected-output, Table 9 and firmware comparison.
+- reproduction_instructions.txt
+  Exact invocation, inputs, software versions and expected outputs.
+
+Share build/run identifiers with R02 rather than creating conflicting
+parallel manifests. Retain the distinction between historical records,
+new verification output and information that remains unavailable.
+
+
+4. EXPECTED RESPONSE STRUCTURE
+
+Write the response in this order:
+
+1. Acknowledge the specific reproducibility omission.
+2. Identify the actual data partitions and selection settings supplied.
+3. State the separation checks performed and their verified results.
+4. State the verified correspondence of selected and deployed rules.
+5. Identify revised manuscript sections/tables and evidence filenames.
+6. State any remaining limitation and leave unresolved elements open.
+
+Use past tense for work actually completed. Do not write “verified,”
+“implemented,” “provided” or “confirmed” for an intended future action.
+Keep the response clear, concise, direct and tied to specific evidence.
+
+
+5. RESPONSE TEMPLATE — USE ONLY AFTER EVIDENCE IS VERIFIED
+
+We thank the reviewer for identifying the incomplete specification of
+offline rule selection. We revised Section 4.2.2 and supplied [actual
+artifact/table references] documenting the development corpus, run
+allocation, sample counts, candidate-generation settings and NSGA-II
+configuration. Candidate generation used [actual allocation], development
+validation used [actual allocation], and final evaluation used [actual
+allocation]. We checked [run identifiers and shared-trace groups] for
+overlap and found [verified result]. The retained selection output
+contained 33 rules, which [verified correspondence with Table 9 and the
+evaluated implementation]. The configuration-freeze record was [actual
+evidence and its limits]. These additions make [the aspects actually
+established] traceable to the supplied records. The changes appear in
+[current section/table/page/line locations].
+
+Replace every bracketed placeholder with an established fact. Do not
+claim all aspects were verified if a check or historical record remains
+missing. Refresh manuscript locations after revisions.
+
+
+6. RESPONSE WHEN SOME EVIDENCE REMAINS UNAVAILABLE
+
+Use a specific statement of the missing evidence, rather than guessing
+settings or treating a citation as an execution record. For example:
+
+We agree that the retained manuscript description did not provide a
+complete selection record. We recovered [available records], which
+established [verified facts]. However, [specific allocation, setting or
+historical record] could not be recovered, so [precise derivation or
+evaluation-independence claim] remains unverified. We revised [locations]
+to limit the claim to [supported scope]. [Any additional evaluation or
+record-recovery action] is [actual status]. We have not treated this
+disclosure as closing the remaining evidence request.
+
+Whether a narrower integrated engineering contribution is sufficient
+requires reassessment. A limitation paragraph is not equivalent to
+reproducing the selection or demonstrating held-out independence.
+
+
+7. COMPLETION CHECK
+
+[ ] Actual selection script/configuration/output chain identified.
+[ ] Development membership and class counts supplied.
+[ ] Actual optimiser/pruning/classification settings recorded.
+[ ] Run and shared-trace separation checked and reported.
+[ ] Freeze history supported or explicitly bounded.
+[ ] Selected rules compared with Table 9 and evaluated implementation.
+[ ] Evidence files linked and manuscript locations updated.
+[ ] Response contains no placeholders or unperformed-work claims.
+[ ] Remaining uncertainty stated; R01 closed only after evidence review.
+
+Do not use the previously identified unreliable offline-selection report
+as evidence. Do not silently change the method to match a proposed reply.
+This guide authorises no simulation execution or manuscript revision.

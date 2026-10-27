@@ -1,0 +1,58 @@
+[real_data] 72 files (0 skipped by env filter) -> 390201 detection events | attack=85644 benign=304557
+[real_data] by scenario:
+          count    sum
+scenario              
+S1        71491  20117
+S2        59628  13853
+S3        74971  19846
+S4        58076   8847
+S5        65853  11375
+S6        60182  11606
+[real_data] by env/round/atkcount:
+                       count    sum
+env    round atkcount              
+mobile r1    3         37933   4362
+             6         30712   6241
+             9         27160   8073
+       r2    3         37148   3917
+             6         31125   5949
+             9         28095   8240
+       r3    3         37636   4826
+             6         30860   5459
+             9         27397   7551
+static r1    3         34692   6031
+             6         32786   9218
+             9         34657  15777
+
+=== [primary] train=273138 (used 3000 events = 890 weighted rows for pool/NSGA-II) test=117063 (17056 weighted rows) ===
+[primary] data ceiling on this test: F1<=0.9877 (FPR 0.0029)
+[pool] enumerated=3990  wang-mendel=77  after pruning=801 candidates
+==========================================================================================
+n_gen  |  n_eval  | n_nds  |     cv_min    |     cv_avg    |      eps      |   indicator  
+==========================================================================================
+     1 |       20 |      6 |  0.000000E+00 |  0.2000000000 |             - |             -
+     2 |       40 |     11 |  0.000000E+00 |  0.000000E+00 |  0.2531645570 |         ideal
+     3 |       60 |     14 |  0.000000E+00 |  0.000000E+00 |  0.0481927711 |         ideal
+     4 |       80 |     14 |  0.000000E+00 |  0.000000E+00 |  0.6250000000 |         nadir
+     5 |      100 |     19 |  0.000000E+00 |  0.000000E+00 |  0.2727272727 |         nadir
+[primary] Pareto front: 19 non-dominated rule bases
+[primary] knee base: 23 rules | test F1=0.8324 FPR=0.0100
+
+=== [round-holdout] train=294308 (used 2999 events = 904 weighted rows for pool/NSGA-II) test=95893 (12912 weighted rows) ===
+[round-holdout] data ceiling on this test: F1<=0.9857 (FPR 0.0025)
+[pool] enumerated=3990  wang-mendel=80  after pruning=711 candidates
+==========================================================================================
+n_gen  |  n_eval  | n_nds  |     cv_min    |     cv_avg    |      eps      |   indicator  
+==========================================================================================
+     1 |       20 |     10 |  0.000000E+00 |  1.0500000000 |             - |             -
+     2 |       40 |     10 |  0.000000E+00 |  0.000000E+00 |  0.0222334865 |         ideal
+     3 |       60 |     13 |  0.000000E+00 |  0.000000E+00 |  0.0071604442 |         ideal
+     4 |       80 |     18 |  0.000000E+00 |  0.000000E+00 |  0.0108392745 |         ideal
+     5 |      100 |     20 |  0.000000E+00 |  0.000000E+00 |  0.3000000000 |         nadir
+[round-holdout] Pareto front: 20 non-dominated rule bases
+[round-holdout] knee base: 13 rules | test F1=0.7328 FPR=0.0037
+
+=== SUMMARY (flat) ===
+primary:       23 rules | test F1=0.8324 FPR=0.0100
+round-holdout: 13 rules | unseen-round F1=0.7328 FPR=0.0037
+F1 gap (primary test vs unseen-round holdout): +0.0996 (check for overfitting)

@@ -64,7 +64,7 @@ if [ -n "$OUT" ] && [ "$FROM" != check ]; then
     source "$OUT/config.txt"
     echo "resuming $OUT from '$FROM' with its config.txt"
 else
-    OUT="${OUT:-outputs/$METHOD/run_$(date +%Y-%m-%d_%H%M)$( [ "$QUICK" = 1 ] && echo _quick)}"
+    OUT="${OUT:-outputs/$METHOD/run_$(date +%Y-%m-%d_%H%M)$(if [ "$QUICK" = 1 ]; then echo _quick; fi)}"
     [ -e "$OUT" ] && die "$OUT already exists -- pick another --out"
     mkdir -p "$OUT"
     COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo none)$(git diff --quiet 2>/dev/null || echo -dirty)"

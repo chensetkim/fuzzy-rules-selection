@@ -1,0 +1,5 @@
+split,partition,events,attack,benign
+primary,train,273138,59812,213326
+primary,test,117063,25832,91231
+round_holdout,train,294308,67808,226500
+round_holdout,test,95893,17836,78057
